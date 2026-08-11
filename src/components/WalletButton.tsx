@@ -17,11 +17,11 @@ export function WalletButton() {
   if (isConnected && address) {
     return (
       <div className="flex items-center gap-2">
-        <span className="rounded-md bg-white/5 px-3 py-1.5 font-mono text-sm text-white/80">
+        <span className="rounded-lg border border-cyan-200/10 bg-white/[.04] px-3 py-2 font-mono text-xs text-white/80">
           {shortAddress(address)}
         </span>
         <AddNetworkButton />
-        <button className="btn btn-ghost" onClick={() => disconnect()}>
+        <button className="button button-ghost" onClick={() => disconnect()}>
           Disconnect
         </button>
       </div>
@@ -30,7 +30,7 @@ export function WalletButton() {
 
   return (
     <button
-      className="btn btn-primary"
+      className="button button-primary"
       disabled={isConnecting || isSwitching}
       onClick={() => connect({ connector: injected() })}
     >

@@ -1,5 +1,18 @@
 export const rwaAbi = [
   {
+    type: "event",
+    name: "AssetTokenized",
+    anonymous: false,
+    inputs: [
+      { name: "tokenId", type: "uint256", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "valuationUsd", type: "uint256", indexed: false },
+      { name: "riskScore", type: "uint8", indexed: false },
+      { name: "underwritingHash", type: "bytes32", indexed: false },
+      { name: "metadataURI", type: "string", indexed: false },
+    ],
+  },
+  {
     type: "function",
     name: "tokenizeProperty",
     stateMutability: "nonpayable",

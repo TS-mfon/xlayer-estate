@@ -13,6 +13,7 @@ const mainnetRpc = process.env.XLAYER_MAINNET_RPC ?? "https://rpc.xlayer.tech";
 const accounts = PRIVATE_KEY ? [PRIVATE_KEY] : [];
 
 const config: HardhatUserConfig = {
+  mocha: { timeout: 120_000 },
   solidity: {
     version: "0.8.24",
     settings: {

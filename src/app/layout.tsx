@@ -19,8 +19,8 @@ export default function RootLayout({
       <body>
         <Providers>
           <Nav />
-          <main className="mx-auto w-full max-w-6xl px-4 py-8">{children}</main>
-          <footer className="mx-auto w-full max-w-6xl px-4 py-10 text-sm text-white/40">
+          <main className="site-main">{children}</main>
+          <footer className="page-frame !py-8 text-sm text-white/35">
             Built for the X Layer BuildX AI Season Hackathon · AI-RWA track
           </footer>
         </Providers>

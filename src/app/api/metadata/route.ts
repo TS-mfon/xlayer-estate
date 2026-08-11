@@ -1,35 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
-import { hashReport } from "@/lib/metadata";
+import { hashReport, serializeReport } from "@/lib/metadata";
 import type { UnderwritingReport } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * Stores the underwriting report and returns a tamper-proof hash (keccak256)
- * plus a URI that gets written on-chain. The hash lets anyone verify the
- * report matches what was tokenized. Reports are served from /metadata in dev.
- */
 export async function POST(req: NextRequest) {
   try {
-    const { report } = (await req.json()) as { report: UnderwritingReport };
-    if (!report) return NextResponse.json({ error: "Missing report" }, { status: 400 });
+    const { report } = (await req.json()) as { report?: UnderwritingReport };
+    if (!report?.property?.address || !Number.isFinite(report.valuationUsd)) {
+      return NextResponse.json({ error: "Invalid underwriting report" }, { status: 400 });
+    }
 
-    const json = JSON.stringify(report, null, 2);
+    const json = serializeReport(report);
     const hash = hashReport(json);
+    const pinataJwt = process.env.PINATA_JWT;
 
-    const dir = path.join(process.cwd(), "public", "metadata");
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, `${hash}.json`), json, "utf8");
+    if (pinataJwt) {
+      const pin = await fetch("https://api.pinata.cloud/pinning/pinJSONToIPFS", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${pinataJwt}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ pinataContent: report, pinataMetadata: { name: `xlayer-estate-${hash}.json` } }),
+      });
+      if (!pin.ok) throw new Error(`IPFS pinning failed (${pin.status})`);
+      const data = (await pin.json()) as { IpfsHash?: string };
+      if (!data.IpfsHash) throw new Error("Pinata returned no CID");
+      return NextResponse.json({ hash, uri: `ipfs://${data.IpfsHash}`, pinned: true });
+    }
 
-    const origin = new URL(req.url).origin;
-    const uri = `${origin}/metadata/${hash}.json`;
-
-    return NextResponse.json({ hash, uri });
-  } catch (e: any) {
-    console.error("metadata error", e);
-    return NextResponse.json({ error: e?.message ?? "metadata failed" }, { status: 500 });
+    const encoded = Buffer.from(json, "utf8").toString("base64");
+    return NextResponse.json({ hash, uri: `data:application/json;base64,${encoded}`, pinned: false });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "metadata failed";
+    console.error("metadata error", error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

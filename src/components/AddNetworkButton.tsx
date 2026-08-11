@@ -9,7 +9,7 @@ export function AddNetworkButton() {
 
   if (chainId === xlayerTestnet.id) {
     return (
-      <span className="rounded-md bg-emerald-500/15 px-2.5 py-1.5 text-xs text-emerald-300">
+      <span className="rounded-lg border border-emerald-300/15 bg-emerald-500/10 px-2.5 py-2 text-xs text-emerald-200">
         X Layer Testnet
       </span>
     );
@@ -34,8 +34,8 @@ export function AddNetworkButton() {
               chainName: "X Layer Testnet",
               nativeCurrency: { name: "OKB", symbol: "OKB", decimals: 18 },
               rpcUrls: [
-                "https://195.rpc.thirdweb.com",
                 "https://xlayer-testnet.drpc.org",
+                "https://195.rpc.thirdweb.com",
               ],
               blockExplorerUrls: ["https://www.oklink.com/xlayer-test"],
             },
@@ -46,7 +46,7 @@ export function AddNetworkButton() {
   };
 
   return (
-    <button className="btn btn-ghost !py-1.5 !text-xs" onClick={addNetwork}>
+    <button className="button button-ghost !min-h-8 !py-1.5 !text-xs" onClick={addNetwork}>
       Switch to X Layer
     </button>
   );

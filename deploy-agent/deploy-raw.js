@@ -1,10 +1,11 @@
 const fs = require('fs');
-require('dotenv').config({ path: '../.env.build' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env.build') });
 const { Wallet, JsonRpcProvider, getCreateAddress } = require('ethers');
 
-const artifact = JSON.parse(fs.readFileSync('./artifacts/contracts/RWAAsset.sol/RWAAsset.json', 'utf8'));
+const artifact = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../artifacts/contracts/RWAAsset.sol/RWAAsset.json'), 'utf8'));
 const CHAIN_ID = 1952; // X Layer testnet true EVM chainId (thirdweb proxy misreports 195)
-const rpc = process.env.XLAYER_TESTNET_RPC || 'https://195.rpc.thirdweb.com';
+const rpc = process.env.XLAYER_TESTNET_RPC || 'https://xlayer-testnet.drpc.org';
 // staticNetwork:true -> ethers won't abort on the proxy's lying eth_chainId (195).
 const provider = new JsonRpcProvider(rpc, { chainId: CHAIN_ID, name: 'xlayer-testnet' }, { staticNetwork: true });
 const wallet = new Wallet(process.env.PRIVATE_KEY, provider);

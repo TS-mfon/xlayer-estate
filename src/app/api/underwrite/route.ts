@@ -42,6 +42,14 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "Missing file" }, { status: 400 });
     }
+    if (file.size > 12 * 1024 * 1024) {
+      return NextResponse.json({ error: "File is too large (12 MB maximum)" }, { status: 413 });
+    }
+    const supported = file.type.startsWith("image/") || file.type === "application/pdf" ||
+      ["text/plain", "text/markdown", "text/csv", "application/json"].includes(file.type);
+    if (!supported) {
+      return NextResponse.json({ error: "Unsupported file type" }, { status: 415 });
+    }
 
     const genAI = getGenAI();
     if (!genAI) {
@@ -49,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: RESPONSE_SCHEMA,
@@ -70,11 +78,21 @@ export async function POST(req: NextRequest) {
     }
     parts.push({ text: "Return the underwriting report as JSON." });
 
-    const result = await model.generateContent({ contents: [{ role: "user", parts }] });
-    const text = result.response.text();
-    const parsed = JSON.parse(text) as UnderwritingReport;
-    parsed.riskScore = Math.max(0, Math.min(100, Math.round(parsed.riskScore)));
-    return NextResponse.json(parsed);
+    try {
+      const result = await model.generateContent({ contents: [{ role: "user", parts }] });
+      const text = result.response.text();
+      const parsed = JSON.parse(text) as UnderwritingReport;
+      if (!parsed.property?.address || !Number.isFinite(parsed.valuationUsd) || !Number.isFinite(parsed.riskScore)) {
+        throw new Error("Gemini returned an incomplete underwriting report");
+      }
+      parsed.riskScore = Math.max(0, Math.min(100, Math.round(parsed.riskScore)));
+      return NextResponse.json(parsed);
+    } catch (providerError) {
+      console.error("Gemini unavailable; using deterministic fallback", providerError);
+      const fallback = mockReport(file);
+      fallback.fallbackReason = "Live Gemini was unavailable; deterministic fallback used.";
+      return NextResponse.json(fallback);
+    }
   } catch (e: any) {
     console.error("underwrite error", e);
     return NextResponse.json({ error: e?.message ?? "underwrite failed" }, { status: 500 });

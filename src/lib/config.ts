@@ -18,3 +18,7 @@ export function explorerToken(chainId: number, address: string, tokenId: bigint)
   const base = EXPLORERS[chainId] ?? EXPLORERS[1952];
   return `${base}/token/${address}?a=${tokenId.toString()}`;
 }
+
+export function metadataGateway(uri: string) {
+  return uri.startsWith("ipfs://") ? `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}` : uri;
+}

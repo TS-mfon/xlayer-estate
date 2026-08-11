@@ -34,7 +34,7 @@ contract RWAAsset is ERC1155, Ownable {
     );
     event AssetStatusChanged(uint256 indexed tokenId, uint8 newStatus);
 
-    constructor() ERC1155("") Ownable(msg.sender) {}
+    constructor() ERC1155("") {}
 
     /// @notice Tokenize a real-estate asset as an ERC-1155 with `totalShares` fractions.
     /// @dev `underwritingHash` is the keccak256 of the canonical AI report JSON.
@@ -47,6 +47,7 @@ contract RWAAsset is ERC1155, Ownable {
         uint256 totalShares
     ) external returns (uint256 tokenId) {
         require(riskScore <= 100, "riskScore > 100");
+        require(to != address(0), "invalid recipient");
         require(totalShares > 0, "totalShares = 0");
         require(underwritingHash != bytes32(0), "empty hash");
         require(bytes(metadataURI).length > 0, "empty metadataURI");
@@ -76,6 +77,7 @@ contract RWAAsset is ERC1155, Ownable {
     function setStatus(uint256 tokenId, uint8 newStatus) external {
         require(tokenId > 0 && tokenId < _nextTokenId, "nonexistent token");
         require(msg.sender == owner() || msg.sender == assetInfo[tokenId].owner, "not authorized");
+        require(newStatus <= 3, "invalid status");
         assetInfo[tokenId].status = newStatus;
         emit AssetStatusChanged(tokenId, newStatus);
     }

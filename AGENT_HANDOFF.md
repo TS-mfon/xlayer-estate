@@ -18,7 +18,7 @@ Submissions close **2026‑08‑21 23:59 UTC**.
 
 - **Frontend:** Next.js 14 (App Router, TypeScript), Tailwind, **wagmi 2.19** + **viem 2.55**, `@tanstack/react-query`.
 - **Contract:** Solidity `RWAAsset` (ERC‑1155 + on‑chain asset registry), Hardhat in `deploy-agent/`.
-- **AI:** Google Gemini (`gemini-2.0-flash`) with structured JSON (`responseMimeType` + `SchemaType` enum). Falls back to a deterministic **mock underwriter** when `GEMINI_API_KEY` is unset (so the app always works offline).
+- **AI:** Google Gemini (`gemini-2.5-flash`) with structured JSON (`responseMimeType` + `SchemaType` enum). Falls back to a deterministic **mock underwriter** when Gemini is unset or unavailable (so the app always works offline).
 
 ## CRITICAL GOTCHAS (read before touching anything)
 
@@ -54,7 +54,7 @@ Submissions close **2026‑08‑21 23:59 UTC**.
 - ✅ `npm run build` passes — 6 routes: `/`, `/tokenize`, `/dashboard`,
   `/api/underwrite`, `/api/metadata`, `/_not-found`.
 - ✅ Contract **deployed** on X Layer testnet at
-  `0xdba3b21c243e21ad31a59cf1dc20840871a066f1` (chainId 1952). Verified alive
+  `0xf0e6044bb76c6c73cd1a79c0e1313ba9f725049a` (chainId 1952). Verified alive
   (`eth_getCode` returns bytecode; `totalAssets()` returns `0`).
 - ✅ Wallet connect + **auto network switch to X Layer** implemented
   (`src/lib/useAutoNetwork.ts`, wired into `WalletButton.tsx`). When connected on a
@@ -121,7 +121,7 @@ src/components/{WalletButton,AddNetworkButton,Nav,AssetCard}.tsx
 
 "Continue building XLayer Estate: a Next.js + wagmi + viem dApp that uses Google Gemini
 to underwrite real‑estate docs and mints them as ERC‑1155 RWA tokens on X Layer testnet
-(chainId 1952; deployed contract 0xdba3b21c243e21ad31a59cf1dc20840871a066f1). The build
+(chainId 1952; deployed contract 0xf0e6044bb76c6c73cd1a79c0e1313ba9f725049a). The build
 passes and the AI/mock + wallet + auto‑network‑switch work. Finish the on‑chain mint
 write path, IPFS metadata pinning, and UX polish. NEVER import wagmi/connectors barrel;
 import injected from @wagmi/core. Keep OZ at 4.9.5."

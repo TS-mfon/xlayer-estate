@@ -4,7 +4,8 @@ import { formatUsd, riskLabel } from "@/lib/format";
 export function UnderwritingReport({ report }: { report: UnderwritingReport }) {
   const risk = riskLabel(report.riskScore);
   return (
-    <div className="glass rounded-2xl p-6">
+    <div className="glass-panel relative overflow-hidden p-6">
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/70 to-transparent" />
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-lg font-semibold">{report.property.address}</h3>
@@ -18,6 +19,12 @@ export function UnderwritingReport({ report }: { report: UnderwritingReport }) {
           </span>
         )}
       </div>
+
+      {report.fallbackReason && (
+        <p className="mt-4 rounded-xl border border-amber-300/15 bg-amber-300/[.06] px-3 py-2 text-xs text-amber-100/80">
+          {report.fallbackReason}
+        </p>
+      )}
 
       <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="AI Valuation" value={formatUsd(report.valuationUsd)} />
@@ -65,7 +72,7 @@ export function UnderwritingReport({ report }: { report: UnderwritingReport }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/5 p-3">
+    <div className="rounded-xl border border-white/5 bg-white/[.035] p-3 transition hover:border-cyan-200/20 hover:bg-cyan-200/[.04]">
       <div className="text-xs text-white/50">{label}</div>
       <div className="mt-0.5 text-sm font-medium">{value}</div>
     </div>
