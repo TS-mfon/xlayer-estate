@@ -80,25 +80,19 @@ cd deploy-agent && npm install
 node deploy-raw.js          # raw ethers deploy, chainId 1952, staticNetwork:true
 ```
 
-## Suggested next steps for the new agent
+## Delivered implementation
 
-1. **End‑to‑end mint flow (highest priority):** the `/tokenize` page calls the AI, then
-   must call `tokenizeProperty(...)` on the contract via wagmi `useWriteContract`. Verify
-   the write path compiles and the ABI in `src/lib/abi.ts` matches the deployed contract
-   (functions: `tokenizeProperty`, `assetInfo` (tuple!), `uri`, `setStatus`,
-   `totalAssets`, `balanceOf`). Mint a test asset from a real wallet and confirm it shows
-   on `/dashboard`.
-2. **Metadata pinning:** `src/app/api/metadata/route.ts` should pin the report JSON to
-   IPFS (Pinata via `PINATA_JWT`, currently optional/no‑op). Wire the returned IPFS URI
-   into `tokenizeProperty`'s `metadataURI`.
-3. **Report hash on‑chain:** pass `keccak256(reportJson)` (helper in `src/lib/metadata.ts`)
-   as `underwritingHash` so the token is verifiable.
-4. **UX polish:** loading/error states on underwriting + mint; tx toast; "view on OKLink"
-   links using `EXPLORERS[1952]` in `src/lib/config.ts`.
-5. **Tests:** add a unit test for the mock underwriter and an on‑chain test (Hardhat /
-   Foundry) for `tokenizeProperty` + `assetInfo`.
-6. **Mainnet path:** add a mainnet deploy + a chain toggle once the hackathon MVP is solid.
-7. **Submission assets:** demo video, README screenshots, hackathon form answers.
+1. **Mint flow:** `/tokenize` calls underwriting, prepares canonical metadata, hashes the
+   exact report bytes, writes `tokenizeProperty(...)`, waits for confirmation, decodes
+   `AssetTokenized`, and links to the asset on OKLink.
+2. **Metadata:** `src/app/api/metadata/route.ts` pins through Pinata when `PINATA_JWT` is
+   configured and otherwise returns a content-addressed data URI suitable for demos.
+3. **UX:** home has a pinned GSAP/ScrollTrigger build sequence with a React Three Fiber
+   visualization; tokenize and dashboard have responsive holographic panels, loading states,
+   network guards, errors, and registry refresh controls.
+4. **Validation:** `npm run build` passes and `npm run test:contract` passes 3/3 tests.
+5. **Remaining optional work:** mainnet toggle, demo video, README screenshots, and final
+   hackathon submission assets.
 
 ## Key files
 
