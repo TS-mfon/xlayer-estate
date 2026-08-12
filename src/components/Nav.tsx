@@ -9,6 +9,7 @@ const links = [
   { href: "/", label: "Overview" },
   { href: "/tokenize", label: "Underwrite" },
   { href: "/dashboard", label: "Registry" },
+  { href: "/marketplace", label: "Marketplace" },
 ];
 
 export function Nav() {

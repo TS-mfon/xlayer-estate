@@ -10,6 +10,7 @@
     "test:contract": "hardhat test",
     "compile": "hardhat compile",
     "deploy:testnet": "node deploy-agent/deploy-raw.js",
+    "deploy:v2": "node scripts/deploy-v2.js",
     "deploy:mainnet": "hardhat run hardhat/deploy/00_deploy.ts --network xlayer"
   },
   "dependencies": {
@@ -25,6 +26,8 @@
     "@react-three/drei": "9.117.3",
     "@react-three/fiber": "8.17.10",
     "gsap": "3.12.7",
+    "framer-motion": "^12.40.0",
+    "lucide-react": "^0.344.0",
     "three": "0.170.0"
   },
   "devDependencies": {

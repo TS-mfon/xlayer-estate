@@ -2,7 +2,8 @@ import { keccak256, stringToBytes } from "viem";
 import type { UnderwritingReport } from "./types";
 
 export function serializeReport(report: UnderwritingReport): string {
-  return JSON.stringify(report);
+  const { fallbackReason: _fallbackReason, ...stableReport } = report;
+  return JSON.stringify(stableReport);
 }
 
 /** Canonical hash of an underwriting report, stored on-chain for tamper-evidence. */

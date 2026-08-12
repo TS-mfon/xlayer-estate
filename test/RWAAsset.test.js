@@ -2,52 +2,83 @@ const assert = require("node:assert/strict");
 const { ethers } = require("hardhat");
 
 async function expectRevert(promise, message) {
-  try {
-    await promise;
-    assert.fail("Expected transaction to revert");
-  } catch (error) {
-    assert.match(String(error), new RegExp(message));
-  }
+  try { await promise; assert.fail("Expected transaction to revert"); }
+  catch (error) { assert.match(String(error), new RegExp(message)); }
 }
 
-describe("RWAAsset", function () {
-  async function deployFixture() {
-    const [owner, assetOwner, outsider] = await ethers.getSigners();
-    const contract = await ethers.deployContract("RWAAsset");
-    await contract.waitForDeployment();
-    return { contract, owner, assetOwner, outsider };
+describe("XLayer Estate V2", function () {
+  async function fixture() {
+    const [deployer, underwriter, issuer, buyer, outsider] = await ethers.getSigners();
+    const rwa = await ethers.deployContract("RWAAsset", [underwriter.address]); await rwa.waitForDeployment();
+    const usdc = await ethers.deployContract("MockUSDC"); await usdc.waitForDeployment();
+    const market = await ethers.deployContract("RWAAMMMarketplace", [await rwa.getAddress(), await usdc.getAddress()]); await market.waitForDeployment();
+    await usdc.mint(issuer.address, 100_000_000); await usdc.mint(buyer.address, 100_000_000);
+    return { deployer, underwriter, issuer, buyer, outsider, rwa, usdc, market };
   }
 
-  it("tokenizes a property and exposes its registry data", async function () {
-    const { contract, assetOwner } = await deployFixture();
-    const reportHash = ethers.keccak256(ethers.toUtf8Bytes('{"valuation":1200000}'));
-    await contract.tokenizeProperty(assetOwner.address, 1_200_000, 18, reportHash, "ipfs://report", 1_000_000);
+  async function authorization(rwa, underwriter, to, overrides = {}) {
+    const network = await ethers.provider.getNetwork();
+    const message = {
+      to: to.address,
+      valuationUsd: 600_000n,
+      launchValuationUsd: 500_000n,
+      riskScore: 18,
+      underwritingHash: ethers.keccak256(ethers.toUtf8Bytes("report")),
+      metadataHash: ethers.keccak256(ethers.toUtf8Bytes("metadata")),
+      totalShares: 1_000_000n,
+      nonce: 42n,
+      deadline: BigInt(Math.floor(Date.now() / 1000) + 3600),
+      ...overrides,
+    };
+    const signature = await underwriter.signTypedData(
+      { name: "XLayerEstate", version: "2", chainId: network.chainId, verifyingContract: await rwa.getAddress() },
+      { MintAuthorization: [
+        { name: "to", type: "address" }, { name: "valuationUsd", type: "uint256" }, { name: "launchValuationUsd", type: "uint256" }, { name: "riskScore", type: "uint8" }, { name: "underwritingHash", type: "bytes32" }, { name: "metadataHash", type: "bytes32" }, { name: "totalShares", type: "uint256" }, { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint256" },
+      ] }, message
+    );
+    return { ...message, signature };
+  }
 
-    const info = await contract.assetInfo(1);
-    assert.equal(info.owner, assetOwner.address);
-    assert.equal(info.valuationUsd, 1_200_000n);
-    assert.equal(info.riskScore, 18n);
-    assert.equal(info.underwritingHash, reportHash);
-    assert.equal(await contract.balanceOf(assetOwner.address, 1), 1_000_000n);
-    assert.equal(await contract.uri(1), "ipfs://report");
-    assert.equal(await contract.totalAssets(), 1n);
+  async function mintAsset(context) {
+    const auth = await authorization(context.rwa, context.underwriter, context.issuer);
+    await context.rwa.tokenizeProperty(auth.to, auth.valuationUsd, auth.launchValuationUsd, auth.riskScore, auth.underwritingHash, auth.metadataHash, "ipfs://metadata", auth.totalShares, auth.nonce, auth.deadline, auth.signature);
+    return auth;
+  }
+
+  it("mints only with a valid, unused underwriting authorization", async function () {
+    const context = await fixture(); const auth = await mintAsset(context);
+    const info = await context.rwa.assetInfo(1);
+    assert.equal(info.owner, context.issuer.address); assert.equal(info.valuationUsd, 600_000n); assert.equal(info.launchValuationUsd, 500_000n); assert.equal(info.totalShares, 1_000_000n);
+    await expectRevert(context.rwa.tokenizeProperty(auth.to, auth.valuationUsd, auth.launchValuationUsd, auth.riskScore, auth.underwritingHash, auth.metadataHash, "ipfs://metadata", auth.totalShares, auth.nonce, auth.deadline, auth.signature), "authorization used");
+    const forged = await authorization(context.rwa, context.outsider, context.issuer, { nonce: 43n });
+    await expectRevert(context.rwa.tokenizeProperty(forged.to, forged.valuationUsd, forged.launchValuationUsd, forged.riskScore, forged.underwritingHash, forged.metadataHash, "ipfs://metadata", forged.totalShares, forged.nonce, forged.deadline, forged.signature), "invalid underwriting authorization");
   });
 
-  it("rejects invalid mint inputs and lifecycle statuses", async function () {
-    const { contract, assetOwner } = await deployFixture();
-    const reportHash = ethers.keccak256(ethers.toUtf8Bytes("report"));
-    await expectRevert(contract.tokenizeProperty(ethers.ZeroAddress, 10, 5, reportHash, "ipfs://report", 1), "invalid recipient");
-    await expectRevert(contract.tokenizeProperty(assetOwner.address, 10, 101, reportHash, "ipfs://report", 1), "riskScore > 100");
-    await contract.tokenizeProperty(assetOwner.address, 10, 5, reportHash, "ipfs://report", 1);
-    await expectRevert(contract.connect(assetOwner).setStatus(1, 4), "invalid status");
+  it("anchors the initial pool to valuation and locks the first 10 USDC", async function () {
+    const context = await fixture(); await mintAsset(context);
+    await context.rwa.connect(context.issuer).setApprovalForAll(await context.market.getAddress(), true);
+    await context.usdc.connect(context.issuer).approve(await context.market.getAddress(), 10_000_000);
+    await context.market.connect(context.issuer).createPool(1, 10_000_000);
+    const pool = await context.market.pools(1);
+    assert.equal(pool.shareReserve, 20n); assert.equal(pool.usdcReserve, 10_000_000n); assert.equal(pool.totalLiquidity, pool.lockedLiquidity); assert.equal(await context.market.liquidityOf(1, context.issuer.address), 0n);
   });
 
-  it("limits status changes to the contract or asset owner", async function () {
-    const { contract, assetOwner, outsider } = await deployFixture();
-    const reportHash = ethers.keccak256(ethers.toUtf8Bytes("report"));
-    await contract.tokenizeProperty(assetOwner.address, 10, 5, reportHash, "ipfs://report", 1);
-    await expectRevert(contract.connect(outsider).setStatus(1, 2), "not authorized");
-    await contract.connect(assetOwner).setStatus(1, 2);
-    assert.equal((await contract.assetInfo(1)).status, 2n);
+  it("buys and sells shares while preserving nonzero reserves", async function () {
+    const context = await fixture(); await mintAsset(context);
+    await context.rwa.connect(context.issuer).setApprovalForAll(await context.market.getAddress(), true); await context.usdc.connect(context.issuer).approve(await context.market.getAddress(), 10_000_000); await context.market.connect(context.issuer).createPool(1, 10_000_000);
+    await context.usdc.connect(context.buyer).approve(await context.market.getAddress(), 2_000_000);
+    const quotedShares = await context.market.quoteBuy(1, 2_000_000); assert.ok(quotedShares > 0n);
+    await context.market.connect(context.buyer).buy(1, 2_000_000, quotedShares, BigInt(Math.floor(Date.now() / 1000) + 600));
+    assert.equal(await context.rwa.balanceOf(context.buyer.address, 1), quotedShares);
+    await context.rwa.connect(context.buyer).setApprovalForAll(await context.market.getAddress(), true);
+    const quotedUsdc = await context.market.quoteSell(1, quotedShares); assert.ok(quotedUsdc > 0n);
+    await context.market.connect(context.buyer).sell(1, quotedShares, quotedUsdc, BigInt(Math.floor(Date.now() / 1000) + 600));
+    const pool = await context.market.pools(1); assert.ok(pool.shareReserve > 0n && pool.usdcReserve > 0n);
+  });
+
+  it("blocks non-issuers, sub-$10 seeds, and expired trades", async function () {
+    const context = await fixture(); await mintAsset(context);
+    await expectRevert(context.market.connect(context.outsider).createPool(1, 10_000_000), "issuer only");
+    await expectRevert(context.market.connect(context.issuer).createPool(1, 9_999_999), "seed below");
   });
 });

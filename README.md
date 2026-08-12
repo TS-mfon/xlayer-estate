@@ -74,6 +74,19 @@ cp .env.build .env.build   # edit and paste your testnet PRIVATE_KEY
 5. Open **Dashboard** to see all tokenized assets with on-chain data + report links.
 6. (Optional) set `GEMINI_API_KEY` to replace the mock underwriter with live Gemini.
 
+## Marketplace
+
+Approved documents can be minted as image-bearing ERC-1155 property shares. The
+issuer must approve the marketplace and seed at least `10 USDC_TEST`; the first
+10 USDC of liquidity remains locked. Markets use the conservative lower valuation
+from underwriting as their launch price and support protected USDC buys and sells.
+
+Current X Layer Testnet addresses:
+
+- RWA registry: `0xc90197fBAe660e0f4b091b4f5E0215fEE0336A67`
+- Marketplace: `0x67E043731d26A7D27C00Bc3389F01162Cb18007d`
+- USDC_TEST: `0xcb8bf24c6ce16ad21d707c9505421a17f2bec79d`
+
 Contract validation:
 
 ```bash

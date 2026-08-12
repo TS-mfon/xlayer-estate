@@ -15,4 +15,5 @@ cache
 typechain-types
 public/metadata
 *.log
+*.tsbuildinfo
 .env*

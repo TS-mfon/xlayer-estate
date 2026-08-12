@@ -26,8 +26,14 @@ export function UnderwritingReport({ report }: { report: UnderwritingReport }) {
         </p>
       )}
 
+      <div className={`mt-4 rounded-xl border px-3 py-2 text-xs ${report.decision === "approved" ? "border-emerald-300/20 bg-emerald-300/[.07] text-emerald-100" : report.decision === "rejected" ? "border-red-300/20 bg-red-300/[.07] text-red-100" : "border-amber-300/20 bg-amber-300/[.07] text-amber-100"}`}>
+        <span className="font-semibold uppercase tracking-[.15em]">{report.decision.replace("_", " ")}</span>
+        <span className="ml-3">Evidence {report.propertyEvidenceScore}/100 · Authenticity {report.authenticityScore}/100 · Confidence {report.valuationConfidence}/100</span>
+      </div>
+
       <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="AI Valuation" value={formatUsd(report.valuationUsd)} />
+        <Stat label="Launch Valuation" value={formatUsd(report.launchValuationUsd)} />
         <Stat
           label="Range"
           value={`${formatUsd(report.valuationRange[0])} – ${formatUsd(
