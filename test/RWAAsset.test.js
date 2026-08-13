@@ -8,12 +8,12 @@ async function expectRevert(promise, message) {
 
 describe("XLayer Estate V2", function () {
   async function fixture() {
-    const [deployer, underwriter, issuer, buyer, outsider] = await ethers.getSigners();
+    const [deployer, underwriter, issuer, buyer, outsider, feeCollector] = await ethers.getSigners();
     const rwa = await ethers.deployContract("RWAAsset", [underwriter.address]); await rwa.waitForDeployment();
     const usdc = await ethers.deployContract("MockUSDC"); await usdc.waitForDeployment();
-    const market = await ethers.deployContract("RWAAMMMarketplace", [await rwa.getAddress(), await usdc.getAddress()]); await market.waitForDeployment();
+    const market = await ethers.deployContract("RWAAMMMarketplace", [await rwa.getAddress(), await usdc.getAddress(), feeCollector.address]); await market.waitForDeployment();
     await usdc.mint(issuer.address, 100_000_000); await usdc.mint(buyer.address, 100_000_000);
-    return { deployer, underwriter, issuer, buyer, outsider, rwa, usdc, market };
+    return { deployer, underwriter, issuer, buyer, outsider, feeCollector, rwa, usdc, market };
   }
 
   async function authorization(rwa, underwriter, to, overrides = {}) {
@@ -57,28 +57,44 @@ describe("XLayer Estate V2", function () {
   it("anchors the initial pool to valuation and locks the first 10 USDC", async function () {
     const context = await fixture(); await mintAsset(context);
     await context.rwa.connect(context.issuer).setApprovalForAll(await context.market.getAddress(), true);
-    await context.usdc.connect(context.issuer).approve(await context.market.getAddress(), 10_000_000);
+    await context.usdc.connect(context.issuer).approve(await context.market.getAddress(), 10_200_000);
     await context.market.connect(context.issuer).createPool(1, 10_000_000);
     const pool = await context.market.pools(1);
     assert.equal(pool.shareReserve, 20n); assert.equal(pool.usdcReserve, 10_000_000n); assert.equal(pool.totalLiquidity, pool.lockedLiquidity); assert.equal(await context.market.liquidityOf(1, context.issuer.address), 0n);
+    assert.equal(await context.usdc.balanceOf(context.feeCollector.address), 200_000n);
   });
 
   it("buys and sells shares while preserving nonzero reserves", async function () {
     const context = await fixture(); await mintAsset(context);
-    await context.rwa.connect(context.issuer).setApprovalForAll(await context.market.getAddress(), true); await context.usdc.connect(context.issuer).approve(await context.market.getAddress(), 10_000_000); await context.market.connect(context.issuer).createPool(1, 10_000_000);
+    await context.rwa.connect(context.issuer).setApprovalForAll(await context.market.getAddress(), true); await context.usdc.connect(context.issuer).approve(await context.market.getAddress(), 10_200_000); await context.market.connect(context.issuer).createPool(1, 10_000_000);
     await context.usdc.connect(context.buyer).approve(await context.market.getAddress(), 2_000_000);
     const quotedShares = await context.market.quoteBuy(1, 2_000_000); assert.ok(quotedShares > 0n);
     await context.market.connect(context.buyer).buy(1, 2_000_000, quotedShares, BigInt(Math.floor(Date.now() / 1000) + 600));
     assert.equal(await context.rwa.balanceOf(context.buyer.address, 1), quotedShares);
+    assert.equal(await context.usdc.balanceOf(context.feeCollector.address), 400_000n);
     await context.rwa.connect(context.buyer).setApprovalForAll(await context.market.getAddress(), true);
     const quotedUsdc = await context.market.quoteSell(1, quotedShares); assert.ok(quotedUsdc > 0n);
     await context.market.connect(context.buyer).sell(1, quotedShares, quotedUsdc, BigInt(Math.floor(Date.now() / 1000) + 600));
     const pool = await context.market.pools(1); assert.ok(pool.shareReserve > 0n && pool.usdcReserve > 0n);
+    assert.equal(await context.usdc.balanceOf(context.feeCollector.address), 600_000n);
   });
 
   it("blocks non-issuers, sub-$10 seeds, and expired trades", async function () {
     const context = await fixture(); await mintAsset(context);
     await expectRevert(context.market.connect(context.outsider).createPool(1, 10_000_000), "issuer only");
     await expectRevert(context.market.connect(context.issuer).createPool(1, 9_999_999), "seed below");
+    await expectRevert(context.market.connect(context.buyer).buy(1, 200_000, 0, BigInt(Math.floor(Date.now() / 1000) + 600)), "trade below fee");
+  });
+
+  it("supports low-value physical assets with the $10 market floor", async function () {
+    const context = await fixture();
+    const auth = await authorization(context.rwa, context.underwriter, context.issuer, { valuationUsd: 5n, launchValuationUsd: 4n, nonce: 99n });
+    await context.rwa.tokenizeProperty(auth.to, auth.valuationUsd, auth.launchValuationUsd, auth.riskScore, auth.underwritingHash, auth.metadataHash, "ipfs://cup", auth.totalShares, auth.nonce, auth.deadline, auth.signature);
+    await context.rwa.connect(context.issuer).setApprovalForAll(await context.market.getAddress(), true);
+    await context.usdc.connect(context.issuer).approve(await context.market.getAddress(), 10_200_000);
+    await context.market.connect(context.issuer).createPool(1, 10_000_000);
+    const pool = await context.market.pools(1);
+    assert.equal(pool.shareReserve, 1_000_000n);
+    assert.equal(pool.usdcReserve, 10_000_000n);
   });
 });

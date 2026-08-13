@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const reportUri = await pinOrData("application/json", reportJson, `xlayer-estate-report-${reportHash}.json`);
     const imageFile = form.get("image");
     const image = imageFile instanceof File && imageFile.size > 0 ? await imageData(imageFile) : generatedImage(report);
-    const metadata = { name: `${report.property.type} · XLayer Estate`, description: report.summary, image: image.uri, external_url: `${new URL(req.url).origin}/marketplace`, report_uri: reportUri, report_hash: reportHash, attributes: [{ trait_type: "Launch valuation", value: report.launchValuationUsd, display_type: "number" }, { trait_type: "Risk score", value: report.riskScore, display_type: "number" }, { trait_type: "Property type", value: report.property.type }, { trait_type: "Title status", value: report.property.titleStatus }, { trait_type: "Evidence score", value: report.propertyEvidenceScore, display_type: "number" }, { trait_type: "Authenticity score", value: report.authenticityScore, display_type: "number" }] };
+    const metadata = { name: `${report.asset.name} · XLayer Estate`, description: `${report.summary} Ownership is self-attested and not legally verified.`, image: image.uri, external_url: `${new URL(req.url).origin}/marketplace`, report_uri: reportUri, report_hash: reportHash, attributes: [{ trait_type: "Launch valuation", value: report.launchValuationUsd, display_type: "number" }, { trait_type: "Risk score", value: report.riskScore, display_type: "number" }, { trait_type: "Asset category", value: report.asset.category }, { trait_type: "Condition", value: report.asset.condition }, { trait_type: "Evidence score", value: report.assetEvidenceScore, display_type: "number" }, { trait_type: "Authenticity score", value: report.authenticityScore, display_type: "number" }, { trait_type: "Ownership", value: "Self-attested / not verified" }] };
     const metadataJson = JSON.stringify(metadata);
     const metadataHash = hashText(metadataJson);
     const uri = await pinOrData("application/json", metadataJson, `xlayer-estate-${metadataHash}.json`);
@@ -38,14 +38,14 @@ export async function POST(req: NextRequest) {
 }
 
 async function imageData(file: File) {
-  if (file.size > 3 * 1024 * 1024) throw new Error("Property image must be smaller than 3 MB");
-  if (!file.type.startsWith("image/")) throw new Error("Property image must be an image file");
+  if (file.size > 3 * 1024 * 1024) throw new Error("Asset image must be smaller than 3 MB");
+  if (!file.type.startsWith("image/")) throw new Error("Asset image must be an image file");
   if (process.env.PINATA_JWT) return { uri: await pinFile(file, `xlayer-estate-photo-${Date.now()}`) };
   return { uri: `data:${file.type};base64,${Buffer.from(await file.arrayBuffer()).toString("base64")}` };
 }
 
 function generatedImage(report: UnderwritingReport) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#08111f"/><stop offset="1" stop-color="#173c51"/></linearGradient></defs><rect width="1200" height="630" fill="url(#g)"/><circle cx="1020" cy="100" r="180" fill="#44dff0" opacity=".13"/><text x="72" y="110" fill="#76ecff" font-family="Arial" font-size="22" letter-spacing="8">XLAYER ESTATE / VERIFIED RWA</text><text x="72" y="250" fill="white" font-family="Arial" font-size="62" font-weight="700">${escapeXml(report.property.type)}</text><text x="72" y="315" fill="#a9c8d5" font-family="Arial" font-size="26">${escapeXml(report.property.address)}</text><text x="72" y="470" fill="#76ecff" font-family="Arial" font-size="34">$${report.launchValuationUsd.toLocaleString()} launch valuation</text><text x="72" y="530" fill="#b9d2dc" font-family="Arial" font-size="22">Risk ${report.riskScore}/100 · X Layer Testnet</text><text x="1050" y="560" fill="#76ecff" font-family="Arial" font-size="52">✦</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"><defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#08111f"/><stop offset="1" stop-color="#173c51"/></linearGradient></defs><rect width="1200" height="630" fill="url(#g)"/><circle cx="1020" cy="100" r="180" fill="#44dff0" opacity=".13"/><text x="72" y="110" fill="#76ecff" font-family="Arial" font-size="22" letter-spacing="8">XLAYER ESTATE / ASSET TOKEN</text><text x="72" y="250" fill="white" font-family="Arial" font-size="62" font-weight="700">${escapeXml(report.asset.name)}</text><text x="72" y="315" fill="#a9c8d5" font-family="Arial" font-size="26">${escapeXml(report.asset.category)} · ${escapeXml(report.asset.condition)}</text><text x="72" y="470" fill="#76ecff" font-family="Arial" font-size="34">$${report.launchValuationUsd.toLocaleString()} launch valuation</text><text x="72" y="530" fill="#b9d2dc" font-family="Arial" font-size="22">Risk ${report.riskScore}/100 · Self-attested asset</text><text x="1050" y="560" fill="#76ecff" font-family="Arial" font-size="52">✦</text></svg>`;
   return { uri: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}` };
 }
 

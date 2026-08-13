@@ -1,16 +1,17 @@
 export type UnderwritingDecision = "approved" | "manual_review" | "rejected";
 
 export interface UnderwritingReport {
-  property: {
-    address: string;
-    type: string;
-    areaSqm: number;
-    rooms: number;
-    owner: string;
-    titleStatus: string;
+  asset: {
+    name: string;
+    category: string;
+    brand: string;
+    model: string;
+    condition: string;
+    identifier: string;
+    ownershipClaim: string;
   };
-  documentType: string;
-  propertyEvidenceScore: number;
+  sourceType: string;
+  assetEvidenceScore: number;
   authenticityScore: number;
   valuationConfidence: number;
   valuationUsd: number;
@@ -24,6 +25,7 @@ export interface UnderwritingReport {
   decisionReasons: string[];
   summary: string;
   mintEligible: boolean;
+  ownershipVerified: false;
   mock?: boolean;
   fallbackReason?: string;
 }

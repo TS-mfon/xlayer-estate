@@ -18,6 +18,7 @@ contract RWAAMMMarketplace is ERC1155Holder, ReentrancyGuard, Pausable, Ownable 
     using SafeERC20 for IERC20;
 
     uint256 public constant MIN_SEED_USDC = 10_000_000;
+    uint256 public constant PLATFORM_FEE_USDC = 200_000;
     uint256 public constant FEE_BPS = 30;
     uint256 public constant BPS = 10_000;
 
@@ -31,6 +32,7 @@ contract RWAAMMMarketplace is ERC1155Holder, ReentrancyGuard, Pausable, Ownable 
 
     IERC1155 public immutable rwa;
     IERC20Metadata public immutable usdc;
+    address public immutable feeCollector;
     mapping(uint256 => Pool) public pools;
     mapping(uint256 => mapping(address => uint256)) public liquidityOf;
 
@@ -39,12 +41,15 @@ contract RWAAMMMarketplace is ERC1155Holder, ReentrancyGuard, Pausable, Ownable 
     event SharesSold(uint256 indexed tokenId, address indexed seller, uint256 sharesIn, uint256 usdcOut, uint256 fee);
     event LiquidityAdded(uint256 indexed tokenId, address indexed provider, uint256 shares, uint256 usdc, uint256 liquidity);
     event LiquidityRemoved(uint256 indexed tokenId, address indexed provider, uint256 shares, uint256 usdc, uint256 liquidity);
+    event PlatformFeePaid(address indexed payer, uint256 indexed tokenId, uint8 indexed action, uint256 amount);
 
-    constructor(address rwa_, address usdc_) {
+    constructor(address rwa_, address usdc_, address feeCollector_) {
         require(rwa_ != address(0) && usdc_ != address(0), "invalid token");
+        require(feeCollector_ != address(0), "invalid fee collector");
         require(IERC20Metadata(usdc_).decimals() == 6, "USDC must use 6 decimals");
         rwa = IERC1155(rwa_);
         usdc = IERC20Metadata(usdc_);
+        feeCollector = feeCollector_;
     }
 
     function createPool(uint256 tokenId, uint256 usdcAmount) external nonReentrant whenNotPaused {
@@ -55,9 +60,12 @@ contract RWAAMMMarketplace is ERC1155Holder, ReentrancyGuard, Pausable, Ownable 
         require(status == 1, "asset not active");
         require(msg.sender == issuer, "issuer only");
         uint256 shares = _sharesForUsdc(usdcAmount, launchValuation, totalShares);
+        if (shares > totalShares) shares = totalShares;
         require(shares > 0, "seed too small");
         rwa.safeTransferFrom(msg.sender, address(this), tokenId, shares, "");
         IERC20(address(usdc)).safeTransferFrom(msg.sender, address(this), usdcAmount);
+        IERC20(address(usdc)).safeTransferFrom(msg.sender, feeCollector, PLATFORM_FEE_USDC);
+        emit PlatformFeePaid(msg.sender, tokenId, 0, PLATFORM_FEE_USDC);
 
         uint256 liquidity = _sqrt(shares * usdcAmount);
         uint256 locked = liquidity * MIN_SEED_USDC / usdcAmount;
@@ -105,40 +113,51 @@ contract RWAAMMMarketplace is ERC1155Holder, ReentrancyGuard, Pausable, Ownable 
 
     function buy(uint256 tokenId, uint256 usdcIn, uint256 minSharesOut, uint256 deadline) external nonReentrant whenNotPaused returns (uint256 sharesOut) {
         require(block.timestamp <= deadline, "trade expired");
+        require(usdcIn > PLATFORM_FEE_USDC, "trade below fee");
         Pool storage pool = _activePool(tokenId);
-        uint256 afterFee = usdcIn * (BPS - FEE_BPS) / BPS;
+        uint256 poolInput = usdcIn - PLATFORM_FEE_USDC;
+        uint256 afterFee = poolInput * (BPS - FEE_BPS) / BPS;
         sharesOut = pool.shareReserve * afterFee / (pool.usdcReserve + afterFee);
         require(sharesOut >= minSharesOut && sharesOut > 0, "buy slippage");
-        IERC20(address(usdc)).safeTransferFrom(msg.sender, address(this), usdcIn);
-        pool.usdcReserve += usdcIn;
+        IERC20(address(usdc)).safeTransferFrom(msg.sender, address(this), poolInput);
+        IERC20(address(usdc)).safeTransferFrom(msg.sender, feeCollector, PLATFORM_FEE_USDC);
+        emit PlatformFeePaid(msg.sender, tokenId, 1, PLATFORM_FEE_USDC);
+        pool.usdcReserve += poolInput;
         pool.shareReserve -= sharesOut;
         rwa.safeTransferFrom(address(this), msg.sender, tokenId, sharesOut, "");
-        emit SharesPurchased(tokenId, msg.sender, usdcIn, sharesOut, usdcIn - afterFee);
+        emit SharesPurchased(tokenId, msg.sender, usdcIn, sharesOut, PLATFORM_FEE_USDC);
     }
 
     function sell(uint256 tokenId, uint256 sharesIn, uint256 minUsdcOut, uint256 deadline) external nonReentrant whenNotPaused returns (uint256 usdcOut) {
         require(block.timestamp <= deadline, "trade expired");
+        require(sharesIn > 0, "shares = 0");
         Pool storage pool = _activePool(tokenId);
         uint256 afterFee = sharesIn * (BPS - FEE_BPS) / BPS;
-        usdcOut = pool.usdcReserve * afterFee / (pool.shareReserve + afterFee);
+        uint256 grossUsdcOut = pool.usdcReserve * afterFee / (pool.shareReserve + afterFee);
+        require(grossUsdcOut > PLATFORM_FEE_USDC, "trade below fee");
+        usdcOut = grossUsdcOut - PLATFORM_FEE_USDC;
         require(usdcOut >= minUsdcOut && usdcOut > 0, "sell slippage");
         rwa.safeTransferFrom(msg.sender, address(this), tokenId, sharesIn, "");
         pool.shareReserve += sharesIn;
-        pool.usdcReserve -= usdcOut;
+        pool.usdcReserve -= grossUsdcOut;
         IERC20(address(usdc)).safeTransfer(msg.sender, usdcOut);
-        emit SharesSold(tokenId, msg.sender, sharesIn, usdcOut, sharesIn - afterFee);
+        IERC20(address(usdc)).safeTransfer(feeCollector, PLATFORM_FEE_USDC);
+        emit PlatformFeePaid(msg.sender, tokenId, 2, PLATFORM_FEE_USDC);
+        emit SharesSold(tokenId, msg.sender, sharesIn, usdcOut, PLATFORM_FEE_USDC);
     }
 
     function quoteBuy(uint256 tokenId, uint256 usdcIn) external view returns (uint256) {
         Pool storage pool = pools[tokenId];
-        uint256 afterFee = usdcIn * (BPS - FEE_BPS) / BPS;
+        if (usdcIn <= PLATFORM_FEE_USDC) return 0;
+        uint256 afterFee = (usdcIn - PLATFORM_FEE_USDC) * (BPS - FEE_BPS) / BPS;
         return pool.shareReserve * afterFee / (pool.usdcReserve + afterFee);
     }
 
     function quoteSell(uint256 tokenId, uint256 sharesIn) external view returns (uint256) {
         Pool storage pool = pools[tokenId];
         uint256 afterFee = sharesIn * (BPS - FEE_BPS) / BPS;
-        return pool.usdcReserve * afterFee / (pool.shareReserve + afterFee);
+        uint256 grossOutput = pool.usdcReserve * afterFee / (pool.shareReserve + afterFee);
+        return grossOutput > PLATFORM_FEE_USDC ? grossOutput - PLATFORM_FEE_USDC : 0;
     }
 
     function pause() external onlyOwner { _pause(); }

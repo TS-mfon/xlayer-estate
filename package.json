@@ -11,6 +11,7 @@
     "compile": "hardhat compile",
     "deploy:testnet": "node deploy-agent/deploy-raw.js",
     "deploy:v2": "node scripts/deploy-v2.js",
+    "deploy:marketplace:v3": "node scripts/deploy-marketplace-v3.js",
     "deploy:mainnet": "hardhat run hardhat/deploy/00_deploy.ts --network xlayer"
   },
   "dependencies": {

@@ -8,10 +8,8 @@ export function UnderwritingReport({ report }: { report: UnderwritingReport }) {
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/70 to-transparent" />
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-lg font-semibold">{report.property.address}</h3>
-          <p className="text-sm text-white/60">
-            {report.property.type} · {report.property.areaSqm} m² · {report.property.rooms} rooms
-          </p>
+          <h3 className="text-lg font-semibold">{report.asset.name}</h3>
+          <p className="text-sm text-white/60">{report.asset.category} · {report.asset.condition} · {report.asset.brand} {report.asset.model}</p>
         </div>
         {report.mock && (
           <span className="rounded-md bg-amber-500/15 px-2 py-1 text-xs text-amber-300">
@@ -28,7 +26,7 @@ export function UnderwritingReport({ report }: { report: UnderwritingReport }) {
 
       <div className={`mt-4 rounded-xl border px-3 py-2 text-xs ${report.decision === "approved" ? "border-emerald-300/20 bg-emerald-300/[.07] text-emerald-100" : report.decision === "rejected" ? "border-red-300/20 bg-red-300/[.07] text-red-100" : "border-amber-300/20 bg-amber-300/[.07] text-amber-100"}`}>
         <span className="font-semibold uppercase tracking-[.15em]">{report.decision.replace("_", " ")}</span>
-        <span className="ml-3">Evidence {report.propertyEvidenceScore}/100 · Authenticity {report.authenticityScore}/100 · Confidence {report.valuationConfidence}/100</span>
+        <span className="ml-3">Evidence {report.assetEvidenceScore}/100 · Authenticity {report.authenticityScore}/100 · Confidence {report.valuationConfidence}/100</span>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -40,8 +38,8 @@ export function UnderwritingReport({ report }: { report: UnderwritingReport }) {
             report.valuationRange[1]
           )}`}
         />
-        <Stat label="Title Status" value={report.property.titleStatus} />
-        <Stat label="Owner" value={report.property.owner} />
+        <Stat label="Identifier" value={report.asset.identifier} />
+        <Stat label="Ownership" value="Self-attested / not verified" />
       </div>
 
       <div className="mt-5">

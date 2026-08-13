@@ -4,9 +4,9 @@ import { Providers } from "./providers";
 import { Nav } from "@/components/Nav";
 
 export const metadata: Metadata = {
-  title: "XLayer Estate — AI Real Estate Tokenization",
+  title: "XLayer Estate — AI Physical Asset Tokenization",
   description:
-    "Upload a property document, let an AI agent underwrite it, and tokenize it on-chain with X Layer.",
+    "Upload a physical asset photo, receive a conservative AI valuation, and tokenize fractional shares on X Layer.",
 };
 
 export default function RootLayout({

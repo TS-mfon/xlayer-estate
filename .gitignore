@@ -14,6 +14,7 @@ artifacts
 cache
 typechain-types
 public/metadata
+test-fixtures/real-estate/*.pdf
 *.log
 *.tsbuildinfo
 .env*
