@@ -10,8 +10,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  let form: FormData;
+  try { form = await req.formData(); }
+  catch { return fail("INVALID_REQUEST", "Send report metadata as multipart form data", 400); }
   try {
-    const form = await req.formData();
     const report = JSON.parse(String(form.get("report") ?? "null")) as UnderwritingReport | null;
     const evaluation = String(form.get("evaluationToken") ?? "");
     const recipient = String(form.get("recipient") ?? "") as `0x${string}`;

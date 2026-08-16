@@ -13,8 +13,10 @@ export const dynamic = "force-dynamic";
 const PROMPT_VERSION = "asset-twin-v1";
 
 export async function POST(req: NextRequest) {
+  let body: { report?: UnderwritingReport; evaluationToken?: string; attempt?: number; wallet?: Address; signature?: `0x${string}` };
+  try { body = await req.json(); }
+  catch { return fail("INVALID_REQUEST", "Send a valid JSON image-generation request", 400); }
   try {
-    const body = await req.json() as { report?: UnderwritingReport; evaluationToken?: string; attempt?: number; wallet?: Address; signature?: `0x${string}` };
     if (!body.report || !body.evaluationToken) return fail("MISSING_INPUT", "Approved report and evaluation token are required", 400);
     const reportJson = serializeReport(body.report);
     const claims = verifyEvaluationToken(hashText(reportJson), body.evaluationToken);

@@ -46,8 +46,10 @@ const strings = (value: unknown) => Array.isArray(value) ? value.map(String).fil
 type Gate = { sourceType: string; isTangibleAsset: boolean; assetEvidenceScore: number; authenticityScore: number; evidenceFound: string[]; missingEvidence: string[]; fatalFlags: string[]; reasoning: string };
 
 export async function POST(req: NextRequest) {
+  let form: FormData;
+  try { form = await req.formData(); }
+  catch { return fail("INVALID_REQUEST", "Send the asset upload as multipart form data", 400); }
   try {
-    const form = await req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return fail("MISSING_FILE", "Upload an asset photo or supporting file", 400);
     if (!file.size) return fail("EMPTY_FILE", "The uploaded file is empty", 400);
