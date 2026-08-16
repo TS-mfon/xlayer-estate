@@ -30,9 +30,14 @@ Marketplace reads:
 1. POST evidence to `/api/underwrite`.
 2. Require `decision === "approved"`, `mintEligible === true`, and an
    `evaluationToken`.
-3. POST report, token, recipient, and optional image to `/api/metadata`.
-4. Submit returned fields to `tokenizeProperty`.
-5. Decode `AssetTokenized` to obtain token ID.
+3. POST the report, token, and attempt number to `/api/generate-image`.
+4. Let the user review the generated twin. One regeneration is available because
+   every evaluation allows at most two image attempts.
+5. POST the report, evaluation token, recipient, returned image record, and
+   returned `imageToken` to `/api/metadata`. The image token prevents the
+   browser from substituting an unrelated image before mint authorization.
+6. Submit returned fields to `tokenizeProperty`.
+7. Decode `AssetTokenized`, then route directly to the guided listing flow.
 
 ### List
 
@@ -56,6 +61,15 @@ Marketplace reads:
 
 ## Metadata
 
-Resolve `ipfs://CID/path` through a trusted gateway. Data URIs can be fetched
-directly. Consumers should display the self-attested ownership warning and must
-not relabel an asset as legally verified.
+Generated images, reports, and metadata may use commit-pinned GitHub raw URLs or
+data URIs. Consumers should verify the on-chain metadata/report hashes, display
+the self-attested ownership warning, and must not relabel an asset as legally
+verified.
+
+## Portfolio indexing
+
+The reference client discovers wallet assets without a centralized indexer. It
+scans configurable deployment-block ranges in RPC-safe chunks, combines registry
+mint events with ERC-1155 transfers, reads current balances, and joins
+marketplace `PoolCreated` events. Production integrators should use a dedicated
+indexer when asset volume makes browser scans expensive.

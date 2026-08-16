@@ -33,13 +33,15 @@ sell securities.
    addresses, deeds, or ownership paperwork.
 3. **Underwrite** — Gemini returns an asset category, visible brand/model,
    condition, conservative resale valuation range, confidence, and risk flags.
-4. **Authorize** — the server signs a short-lived EIP-712 mint authorization.
+4. **Build twin** — Gemini generates a gallery-style asset image. A server HMAC
+   binds the selected twin to the approved report so the browser cannot swap it.
+5. **Authorize** — the server signs a short-lived EIP-712 mint authorization.
    The browser cannot invent a report or bypass the underwriter.
-5. **Mint** — the connected wallet mints one million ERC-1155 shares. Metadata
+6. **Mint** — the connected wallet mints one million ERC-1155 shares. Metadata
    includes the uploaded/generated image and a keccak256 report hash.
-6. **List** — the issuer approves the marketplace, supplies matching shares and
+7. **List** — the issuer approves the marketplace, supplies matching shares and
    at least 10 USDC_TEST, and pays the fixed listing fee.
-7. **Trade** — buyers and sellers swap fractional shares against USDC_TEST in a
+8. **Trade** — buyers and sellers swap fractional shares against USDC_TEST in a
    constant-product AMM with slippage and deadline protection.
 
 ## What can be uploaded?
@@ -70,11 +72,15 @@ not increase the AI valuation or claim that the item is worth 10 USDC.
 - A photo is enough for a first-pass demo; receipts and ownership documents are
   optional evidence, not mandatory inputs.
 - Gemini receives the uploaded file when `GEMINI_API_KEY` is configured.
-- The server stores no local files. If `PINATA_JWT` is configured, metadata and
-  images are pinned to IPFS; otherwise the API returns content-addressed data
-  URIs for the demo.
+- The original upload is used for evaluation but is not published by the
+  metadata pipeline. The user reviews a Gemini-generated digital twin instead.
+- The server stores no local files. With `GITHUB_MEDIA_TOKEN`, generated twins,
+  sanitized reports, and NFT metadata are written to a dedicated demo media
+  repository and referenced by commit-pinned raw URLs. Without it, the demo
+  uses content-addressed data URIs.
 - The report hash is stored on-chain, not the raw report contents.
-- IPFS is public by design. Never pin confidential material.
+- GitHub demo storage is public and is not protocol-grade permanent storage.
+  Never upload confidential material.
 - The application does not verify legal ownership or physical custody.
 
 ## Marketplace and fees
@@ -159,7 +165,9 @@ The marketplace holds ERC-1155 shares and USDC_TEST reserves. It implements:
 - Framer Motion, Three.js, React Three Fiber, GSAP ScrollTrigger.
 - Solidity 0.8.24 and OpenZeppelin 4.9.5.
 - Hardhat contract tests.
-- Google Gemini structured JSON underwriting with a safe manual-review fallback.
+- Google Gemini structured JSON underwriting and generated asset twins.
+- Event-indexed wallet portfolio discovery using registry, transfer, and market
+  logs rather than a centralized database.
 
 ## X Layer network details
 
@@ -204,7 +212,7 @@ stable local demo path. If `.next` exists and the safe-delete guard blocks
 ## Environment variables
 
 Copy `.env.example` to `.env.local`. Never commit `.env.local`, `.env.build`,
-private keys, Gemini keys, Pinata JWTs, or session secrets.
+private keys, Gemini keys, media tokens, or session secrets.
 
 ### Browser-visible
 
@@ -212,11 +220,15 @@ private keys, Gemini keys, Pinata JWTs, or session secrets.
 - `NEXT_PUBLIC_MARKETPLACE_ADDRESS` — deployed fee-aware marketplace.
 - `NEXT_PUBLIC_USDC_ADDRESS` — six-decimal USDC_TEST address.
 - `NEXT_PUBLIC_FEE_COLLECTOR` — display-only collector address.
+- `NEXT_PUBLIC_RWA_DEPLOYMENT_BLOCK` — first registry event scan block.
+- `NEXT_PUBLIC_MARKETPLACE_DEPLOYMENT_BLOCK` — first marketplace scan block.
 
 ### Server-only
 
-- `GEMINI_API_KEY` — enables live image/document analysis.
-- `PINATA_JWT` — optional IPFS pinning credential.
+- `GEMINI_API_KEY` — enables live analysis and asset-twin generation.
+- `GEMINI_TEXT_MODEL` / `GEMINI_IMAGE_MODEL` — optional model overrides.
+- `GITHUB_MEDIA_TOKEN` — optional fine-grained demo-media repository token.
+- `GITHUB_MEDIA_REPO` / `GITHUB_MEDIA_BRANCH` — media destination configuration.
 - `UNDERWRITER_PRIVATE_KEY` — server-only signing key; never use the deployer
   key here.
 - `UNDERWRITER_SESSION_SECRET` — HMAC secret for evaluation sessions.
@@ -260,6 +272,7 @@ NEXT_PUBLIC_FEE_COLLECTOR=0x5905c9Dea6Ae52AA0947D8F7F218263889eDfC4E
 ```bash
 npx tsc --noEmit --pretty false
 npm run compile
+npm run test:unit
 npm run test:contract
 git diff --check
 ```
@@ -274,10 +287,10 @@ markets.
 1. Use a public or personal photo of a laptop, cup, camera, watch, or other
    lawful physical item. Do not upload confidential documents.
 2. Upload the image on `/tokenize`.
-3. Confirm the AI report identifies the item and shows a non-zero conservative
-   resale valuation.
+3. Confirm the AI report identifies the item, shows a conservative valuation,
+   and generates a reviewable digital twin.
 4. Connect the deployer/test wallet on X Layer testnet.
-5. Mint the ERC-1155 asset and open its marketplace page.
+5. Mint the ERC-1155 asset and confirm the automatic marketplace-listing redirect.
 6. Approve shares and USDC_TEST.
 7. Enter at least `10` USDC for listing plus the separate `0.20` USDC fee.
 8. Use a second test wallet for buy/sell testing; never use a production wallet
@@ -303,11 +316,15 @@ markets.
 contracts/RWAAsset.sol             ERC-1155 asset registry and signed minting
 contracts/RWAAMMMarketplace.sol    USDC AMM, liquidity lock, and platform fees
 src/app/api/underwrite             Gemini tangible-asset gate and valuation
-src/app/api/metadata               image/metadata preparation and EIP-712 signing
-src/app/tokenize                    upload → evaluate → mint flow
-src/app/marketplace                 market discovery and trading UI
+src/app/api/generate-image          Gemini twin generation and persistence
+src/app/api/metadata                report/metadata persistence and signing
+src/app/tokenize                    upload → evaluate → twin → mint → list flow
+src/app/marketplace                 event-indexed market discovery and trading UI
+src/app/dashboard                   wallet assets, live markets, and holdings
 src/components/CinematicHome.tsx   cinematic landing experience
 src/lib/attestation.ts              report hashing and mint authorization
 src/lib/abi.ts                      frontend contract interfaces
+src/lib/events.ts                   chunked on-chain event portfolio discovery
+src/lib/github-storage.ts           commit-pinned demo artifact persistence
 test/RWAAsset.test.js               registry and marketplace tests
 ```

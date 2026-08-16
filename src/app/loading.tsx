@@ -1,0 +1,1 @@
+export default function Loading() { return <div className="route-loading"><div className="loading-orbit">✦</div><p className="kicker">Synchronizing estate</p><span>Reading X Layer and preparing the next view…</span></div>; }

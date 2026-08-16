@@ -1,23 +1,40 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import { keccak256, stringToBytes, type Hex } from "viem";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { keccak256, stringToBytes, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { RWA_ADDRESS } from "./config";
+import type { GeneratedAssetImage } from "./types";
 
 const CHAIN_ID = 1952;
+const EVALUATION_TTL_SECONDS = 30 * 60;
 const DOMAIN = { name: "XLayerEstate", version: "2", chainId: CHAIN_ID, verifyingContract: RWA_ADDRESS } as const;
 const TYPES = {
   MintAuthorization: [
-    { name: "to", type: "address" },
-    { name: "valuationUsd", type: "uint256" },
-    { name: "launchValuationUsd", type: "uint256" },
-    { name: "riskScore", type: "uint8" },
-    { name: "underwritingHash", type: "bytes32" },
-    { name: "metadataHash", type: "bytes32" },
-    { name: "totalShares", type: "uint256" },
-    { name: "nonce", type: "uint256" },
+    { name: "to", type: "address" }, { name: "valuationUsd", type: "uint256" },
+    { name: "launchValuationUsd", type: "uint256" }, { name: "riskScore", type: "uint8" },
+    { name: "underwritingHash", type: "bytes32" }, { name: "metadataHash", type: "bytes32" },
+    { name: "totalShares", type: "uint256" }, { name: "nonce", type: "uint256" },
     { name: "deadline", type: "uint256" },
   ],
 } as const;
+
+export interface EvaluationClaims {
+  version: 1;
+  evaluationId: string;
+  reportHash: Hex;
+  issuedAt: number;
+  expiresAt: number;
+  maxImageAttempts: number;
+}
+
+interface ImageClaims {
+  version: 1;
+  evaluationId: string;
+  reportHash: Hex;
+  contentHash: Hex;
+  uri: string;
+  attempt: number;
+  expiresAt: number;
+}
 
 function requiredSecret(name: string) {
   const value = process.env[name];
@@ -25,35 +42,90 @@ function requiredSecret(name: string) {
   return value;
 }
 
-export function evaluationToken(reportHash: Hex) {
-  return createHmac("sha256", requiredSecret("UNDERWRITER_SESSION_SECRET")).update(reportHash).digest("hex");
+function signature(payload: string) {
+  return createHmac("sha256", requiredSecret("UNDERWRITER_SESSION_SECRET")).update(payload).digest("base64url");
 }
 
-export function verifyEvaluationToken(reportHash: Hex, token: string) {
-  const expected = Buffer.from(evaluationToken(reportHash), "hex");
-  const received = Buffer.from(token, "hex");
-  return expected.length === received.length && timingSafeEqual(expected, received);
+function signedToken(value: object) {
+  const payload = Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${payload}.${signature(payload)}`;
+}
+
+function verifiedPayload<T>(token: string): T {
+  const [payload, receivedSignature] = token.split(".");
+  if (!payload || !receivedSignature) throw new Error("Invalid signed token");
+  const expected = Buffer.from(signature(payload));
+  const received = Buffer.from(receivedSignature);
+  if (expected.length !== received.length || !timingSafeEqual(expected, received)) throw new Error("Invalid signed token");
+  return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as T;
+}
+
+export function issueEvaluationToken(reportHash: Hex): { token: string; claims: EvaluationClaims } {
+  const now = Math.floor(Date.now() / 1000);
+  const claims: EvaluationClaims = {
+    version: 1,
+    evaluationId: randomUUID(),
+    reportHash,
+    issuedAt: now,
+    expiresAt: now + EVALUATION_TTL_SECONDS,
+    maxImageAttempts: 2,
+  };
+  return { token: signedToken(claims), claims };
+}
+
+export function verifyEvaluationToken(reportHash: Hex, token: string): EvaluationClaims {
+  let claims: EvaluationClaims;
+  try { claims = verifiedPayload<EvaluationClaims>(token); }
+  catch { throw new Error("Invalid evaluation token"); }
+  if (claims.version !== 1 || claims.reportHash.toLowerCase() !== reportHash.toLowerCase()) throw new Error("Evaluation token does not match this report");
+  if (claims.expiresAt < Math.floor(Date.now() / 1000)) throw new Error("Evaluation expired. Run underwriting again.");
+  return claims;
+}
+
+export function issueImageToken(claims: EvaluationClaims, image: GeneratedAssetImage) {
+  return signedToken({
+    version: 1,
+    evaluationId: claims.evaluationId,
+    reportHash: claims.reportHash,
+    contentHash: image.contentHash,
+    uri: image.uri,
+    attempt: image.attempt,
+    expiresAt: claims.expiresAt,
+  } satisfies ImageClaims);
+}
+
+export function verifyImageToken(reportHash: Hex, image: GeneratedAssetImage, token: string) {
+  let claims: ImageClaims;
+  try { claims = verifiedPayload<ImageClaims>(token); }
+  catch { throw new Error("Invalid asset image approval"); }
+  const matches = claims.version === 1
+    && claims.reportHash.toLowerCase() === reportHash.toLowerCase()
+    && claims.contentHash.toLowerCase() === image.contentHash.toLowerCase()
+    && claims.uri === image.uri
+    && claims.attempt === image.attempt;
+  if (!matches) throw new Error("Asset image approval does not match this report and twin");
+  if (claims.expiresAt < Math.floor(Date.now() / 1000)) throw new Error("Asset image approval expired. Run underwriting again.");
+  return claims;
+}
+
+export function imageApprovalMessage(args: { wallet: Address; claims: EvaluationClaims; attempt: number }) {
+  return [
+    "XLayer Estate asset twin generation",
+    `Wallet: ${args.wallet}`,
+    `Evaluation: ${args.claims.evaluationId}`,
+    `Report: ${args.claims.reportHash}`,
+    `Attempt: ${args.attempt}`,
+    `Expires: ${args.claims.expiresAt}`,
+  ].join("\n");
 }
 
 export async function signMintAuthorization(args: {
-  to: `0x${string}`;
-  valuationUsd: bigint;
-  launchValuationUsd: bigint;
-  riskScore: number;
-  underwritingHash: Hex;
-  metadataHash: Hex;
-  totalShares: bigint;
-  nonce: bigint;
-  deadline: bigint;
+  to: Address; valuationUsd: bigint; launchValuationUsd: bigint; riskScore: number;
+  underwritingHash: Hex; metadataHash: Hex; totalShares: bigint; nonce: bigint; deadline: bigint;
 }) {
-  const account = privateKeyToAccount(requiredSecret("UNDERWRITER_PRIVATE_KEY") as `0x${string}`);
-  const signature = await account.signTypedData({
-    domain: DOMAIN,
-    types: TYPES,
-    primaryType: "MintAuthorization",
-    message: args,
-  });
-  return { signature, underwriter: account.address };
+  const account = privateKeyToAccount(requiredSecret("UNDERWRITER_PRIVATE_KEY") as Hex);
+  const signatureValue = await account.signTypedData({ domain: DOMAIN, types: TYPES, primaryType: "MintAuthorization", message: args });
+  return { signature: signatureValue, underwriter: account.address };
 }
 
 export function hashText(value: string): Hex {

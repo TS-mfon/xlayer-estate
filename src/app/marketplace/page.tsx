@@ -1,37 +1,26 @@
 "use client";
 
-import Link from "next/link";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useQuery } from "@tanstack/react-query";
+import { usePublicClient } from "wagmi";
 import { marketplaceAbi, rwaAbi } from "@/lib/abi";
 import { MARKETPLACE_ADDRESS, RWA_ADDRESS } from "@/lib/config";
 import { xlayerTestnet } from "@/lib/chains";
-import { formatUsd } from "@/lib/format";
+import { discoverMarketplaceTokenIds } from "@/lib/events";
+import { AssetCard, type AssetInfo } from "@/components/AssetCard";
 
 export default function MarketplacePage() {
-  const configured = MARKETPLACE_ADDRESS !== "0x0000000000000000000000000000000000000000";
-  const { data: total, isLoading: totalLoading } = useReadContract({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "totalAssets", chainId: xlayerTestnet.id });
-  const ids = total ? Array.from({ length: Math.min(Number(total), 100) }, (_, index) => BigInt(index + 1)) : [];
-  const { data, isLoading } = useReadContracts({ contracts: ids.flatMap((id) => [
-    { address: RWA_ADDRESS, abi: rwaAbi, functionName: "assetInfo", args: [id], chainId: xlayerTestnet.id },
-    { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "pools", args: [id], chainId: xlayerTestnet.id },
-  ]), query: { enabled: configured && ids.length > 0 } });
-
-  const markets = ids.map((id, index) => {
-    const assetResult = data?.[index * 2]; const poolResult = data?.[index * 2 + 1];
-    if (assetResult?.status !== "success") return null;
-    const info = assetResult.result as any;
-    const pool = poolResult?.status === "success" ? poolResult.result as unknown as readonly [bigint, bigint, bigint, bigint, boolean] : undefined;
-    return { id, info, pool };
-  }).filter(Boolean) as { id: bigint; info: any; pool?: readonly [bigint, bigint, bigint, bigint, boolean] }[];
-
-  return <div className="page-frame">
-    <div className="section-heading"><div><p className="kicker">USDC_TEST / fractional RWA</p><h1 className="text-5xl font-semibold tracking-[-.06em] sm:text-7xl">Physical asset<br />markets.</h1></div><p>Trade fractional ERC-1155 shares of community-listed physical assets through valuation-anchored USDC liquidity pools.</p></div>
-    {!configured && <div className="glass-panel p-6 text-amber-200">Marketplace deployment is not configured.</div>}
-    {(totalLoading || isLoading) && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[1,2,3].map((item) => <div className="glass-panel h-56 animate-pulse" key={item} />)}</div>}
-    {!totalLoading && markets.length === 0 && <div className="glass-panel p-8"><p className="kicker">No markets yet</p><h2 className="mt-3 text-2xl font-semibold">Mint an approved asset and seed its first 10 USDC of liquidity.</h2><Link href="/tokenize" className="button button-primary mt-6">Create the first market ↗</Link></div>}
-    <div className="dashboard-grid">{markets.map(({ id, info, pool }) => {
-      const active = Boolean(pool?.[4]); const spot = active && pool![0] > 0n ? Number(pool![1]) / 1e6 / Number(pool![0]) : Number(info.launchValuationUsd) / Number(info.totalShares);
-      return <Link href={`/marketplace/${id}`} key={id.toString()} className="glass-panel group p-5 transition hover:-translate-y-1 hover:border-cyan-200/30"><div className="flex justify-between"><span className="kicker">Asset #{id.toString()}</span><span className={`rounded-full px-2 py-1 text-xs ${active ? "bg-emerald-400/10 text-emerald-200" : "bg-amber-400/10 text-amber-200"}`}>{active ? "Trading" : "Needs liquidity"}</span></div><h2 className="mt-8 text-xl font-semibold">{info.owner ? `Tokenized physical asset #${id}` : "Physical asset"}</h2><div className="mt-5 grid grid-cols-2 gap-3 text-sm"><div><p className="text-white/40">Launch value</p><p>{formatUsd(info.launchValuationUsd)}</p></div><div><p className="text-white/40">Spot / share</p><p>${spot.toFixed(4)}</p></div><div><p className="text-white/40">USDC reserve</p><p>{active ? `${(Number(pool![1]) / 1e6).toFixed(2)} USDC` : "0"}</p></div><div><p className="text-white/40">Risk</p><p>{Number(info.riskScore)}/100</p></div></div></Link>;
-    })}</div>
+  const client = usePublicClient({ chainId: xlayerTestnet.id });
+  const markets = useQuery({ queryKey: ["marketplace-events"], enabled: Boolean(client), queryFn: async () => {
+    if (!client) return [];
+    const ids = await discoverMarketplaceTokenIds(client);
+    const results = await client.multicall({ contracts: ids.flatMap((id) => [{ address: RWA_ADDRESS, abi: rwaAbi, functionName: "assetInfo", args: [id] } as const, { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "pools", args: [id] } as const]), allowFailure: true });
+    return ids.map((id, index) => { const asset = results[index * 2]; const pool = results[index * 2 + 1]; if (asset.status !== "success" || pool.status !== "success") return null; const tuple = pool.result as readonly [bigint, bigint, bigint, bigint, boolean]; return tuple[4] ? { id, info: asset.result as unknown as AssetInfo, pool: tuple } : null; }).filter(Boolean) as Array<{ id: bigint; info: AssetInfo; pool: readonly [bigint, bigint, bigint, bigint, boolean] }>;
+  }, staleTime: 30_000 });
+  return <div className="page-frame marketplace-world"><div className="section-heading"><div><p className="kicker">USDC_TEST / active property markets</p><h1 className="text-5xl font-semibold tracking-[-.06em] sm:text-7xl">The public<br />asset district.</h1></div><p>Browse only live liquidity pools. Every market starts with issuer capital, a conservative launch valuation, and transparent protocol fees.</p></div>
+    <div className="market-stat-ribbon"><span><strong>{markets.data?.length ?? 0}</strong> live markets</span><span><strong>$10</strong> minimum seed</span><span><strong>$0.20</strong> fixed action fee</span><span><strong>0.30%</strong> AMM fee</span></div>
+    {markets.isLoading && <div className="estate-loading">{[1,2,3].map((item) => <div className="estate-card animate-pulse" key={item} />)}</div>}
+    {markets.error && <div className="glass-panel p-5 text-red-200">Marketplace events could not be loaded. Retry after checking the X Layer RPC.</div>}
+    {!markets.isLoading && markets.data?.length === 0 && <div className="estate-empty glass-panel"><span>◇</span><p className="kicker">District awaiting liquidity</p><h2>No issuer has opened a market yet.</h2><p>Mint an approved asset, then seed its first 10 USDC_TEST directly from the confirmation flow.</p><a className="button button-primary mt-6" href="/tokenize">Originate a property ↗</a></div>}
+    <div className="estate-grid">{markets.data?.map((market) => <AssetCard key={market.id.toString()} id={market.id} info={market.info} chainId={xlayerTestnet.id} listed />)}</div>
   </div>;
 }

@@ -17,4 +17,5 @@ public/metadata
 test-fixtures/real-estate/*.pdf
 *.log
 *.tsbuildinfo
+.tmp/
 .env*

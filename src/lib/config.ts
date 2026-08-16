@@ -8,6 +8,9 @@ export const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS ?? "0xcb8bf24c
 export const USDC_DECIMALS = 6;
 export const PLATFORM_FEE_USDC = 200_000n;
 export const FEE_COLLECTOR = (process.env.NEXT_PUBLIC_FEE_COLLECTOR ?? "0x5905c9Dea6Ae52AA0947D8F7F218263889eDfC4E") as `0x${string}`;
+export const RWA_DEPLOYMENT_BLOCK = BigInt(process.env.NEXT_PUBLIC_RWA_DEPLOYMENT_BLOCK ?? "38100000");
+export const MARKETPLACE_DEPLOYMENT_BLOCK = BigInt(process.env.NEXT_PUBLIC_MARKETPLACE_DEPLOYMENT_BLOCK ?? "38100000");
+export const LOG_CHUNK_SIZE = 9_000n;
 
 export const EXPLORERS: Record<number, string> = {
   1952: "https://www.oklink.com/xlayer-test",

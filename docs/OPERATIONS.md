@@ -7,6 +7,11 @@
 - Confirm registry underwriter address matches the server signer.
 - Confirm fee collector address.
 - Confirm deployer has testnet OKB.
+- Confirm `GEMINI_API_KEY`, `UNDERWRITER_PRIVATE_KEY`, and
+  `UNDERWRITER_SESSION_SECRET` are server-only variables.
+- Confirm the media token has access only to the dedicated demo media repository.
+- Set deployment-block variables close to contract creation blocks so browser
+  event scans do not start at genesis.
 - Run typecheck, compile, tests, build, and `git diff --check`.
 - Confirm no environment file or generated credential is tracked.
 
@@ -48,3 +53,32 @@ Current X Layer testnet fee-aware marketplace:
 - Listing approval includes 10.20 USDC for a 10 USDC seed.
 - Fee collector receives exactly 0.20 USDC per listing, buy, and sell.
 - Pool reserves exclude platform revenue.
+- Mint confirmation redirects to the guided listing flow.
+- `/dashboard` finds issuer assets, live markets, and fractional holdings from
+  registry, transfer, and pool events.
+- Generated media URLs are commit-pinned and readable without credentials.
+
+## Demo media storage
+
+Set `GITHUB_MEDIA_TOKEN`, `GITHUB_MEDIA_REPO`, and `GITHUB_MEDIA_BRANCH` in
+Vercel. Use a fine-grained token limited to contents write access on a dedicated
+media repository. The app writes generated WebP twins, sanitized reports, and
+ERC-1155 metadata; it does not publish the original user upload.
+
+If the integration is absent, the API returns data URIs. This is useful for
+local testing but is not a production persistence strategy. GitHub storage is
+also a demo compromise: migrate to immutable content-addressed storage before
+mainnet.
+
+## Release checks
+
+```bash
+npx tsc --noEmit
+npm run test:unit
+npm run test:contract
+npm run build
+git diff --check
+```
+
+A full mint/list/buy/sell smoke test requires browser-wallet signatures,
+USDC_TEST, and testnet OKB.

@@ -1,25 +1,39 @@
 "use client";
 
-import { useReadContract, useReadContracts } from "wagmi";
-import { rwaAbi } from "@/lib/abi";
-import { RWA_ADDRESS } from "@/lib/config";
+import { useQuery } from "@tanstack/react-query";
+import { useAccount, usePublicClient } from "wagmi";
+import { marketplaceAbi, rwaAbi } from "@/lib/abi";
+import { MARKETPLACE_ADDRESS, RWA_ADDRESS } from "@/lib/config";
 import { xlayerTestnet } from "@/lib/chains";
 import { AssetCard, type AssetInfo } from "@/components/AssetCard";
+import { discoverWalletTokenIds } from "@/lib/events";
+import { FaucetButton } from "@/components/FaucetButton";
 
 export default function DashboardPage() {
-  const contractMissing = RWA_ADDRESS === "0x0000000000000000000000000000000000000000";
-  const { data: total, isLoading: totalLoading, refetch } = useReadContract({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "totalAssets", chainId: xlayerTestnet.id, query: { enabled: !contractMissing } });
-  const ids = total ? Array.from({ length: Math.min(Number(total), 100) }, (_, index) => BigInt(index + 1)) : [];
-  const { data: infos, isLoading } = useReadContracts({ contracts: ids.map((id) => ({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "assetInfo", args: [id], chainId: xlayerTestnet.id })), query: { enabled: !contractMissing && ids.length > 0 } });
-  const assets = (infos ?? []).map((result, index) => result.status === "success" ? { id: ids[index], info: result.result as unknown as AssetInfo } : null).filter(Boolean) as { id: bigint; info: AssetInfo }[];
+  const { address, isConnected } = useAccount(); const client = usePublicClient({ chainId: xlayerTestnet.id });
+  const portfolio = useQuery({ queryKey: ["wallet-estate", address], enabled: Boolean(address && client), queryFn: async () => {
+    if (!address || !client) return [];
+    const ids = await discoverWalletTokenIds(client, address);
+    if (!ids.length) return [];
+    const [balances, details] = await Promise.all([
+      client.readContract({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "balanceOfBatch", args: [ids.map(() => address), ids] }),
+      client.multicall({ contracts: ids.flatMap((id) => [{ address: RWA_ADDRESS, abi: rwaAbi, functionName: "assetInfo", args: [id] } as const, { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "pools", args: [id] } as const]), allowFailure: true }),
+    ]);
+    return ids.map((id, index) => { const asset = details[index * 2]; const pool = details[index * 2 + 1]; if (asset.status !== "success") return null; const tuple = pool.status === "success" ? pool.result as readonly [bigint, bigint, bigint, bigint, boolean] : undefined; return { id, balance: balances[index], info: asset.result as unknown as AssetInfo, listed: Boolean(tuple?.[4]) }; }).filter(Boolean) as Array<{ id: bigint; balance: bigint; info: AssetInfo; listed: boolean }>;
+  }, staleTime: 30_000 });
+  const ready = portfolio.data?.filter((asset) => asset.info.owner.toLowerCase() === address?.toLowerCase() && !asset.listed) ?? [];
+  const listed = portfolio.data?.filter((asset) => asset.listed) ?? [];
+  const held = portfolio.data?.filter((asset) => asset.balance > 0n && asset.info.owner.toLowerCase() !== address?.toLowerCase()) ?? [];
 
-  return (
-    <div className="page-frame">
-      <div className="section-heading"><div><p className="kicker">On-chain registry / X Layer 1952</p><h1 className="text-5xl font-semibold tracking-[-.06em] sm:text-7xl">Asset<br />registry.</h1></div><div><p>{Number(total ?? 0)} verified asset{Number(total ?? 0) === 1 ? "" : "s"} indexed.</p><button className="button button-ghost mt-4" onClick={() => refetch()}>Refresh registry ↻</button></div></div>
-      {contractMissing && <div className="glass-panel p-6 text-sm text-amber-200">The registry contract address is not configured.</div>}
-      {!contractMissing && (totalLoading || isLoading) && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((item) => <div key={item} className="glass-panel h-52 animate-pulse bg-white/[.03]" />)}</div>}
-      {!contractMissing && !totalLoading && !isLoading && assets.length === 0 && <div className="glass-panel p-8"><p className="kicker">No assets yet</p><h2 className="mt-3 text-2xl font-semibold">The registry is waiting for its first signal.</h2><a className="button button-primary mt-6" href="/tokenize">Originate an asset ↗</a></div>}
-      <div className="dashboard-grid">{assets.map((asset) => <AssetCard key={asset.id.toString()} id={asset.id} info={asset.info} chainId={xlayerTestnet.id} />)}</div>
-    </div>
-  );
+  return <div className="page-frame estate-dashboard">
+    <div className="section-heading"><div><p className="kicker">Wallet estate / event indexed</p><h1 className="text-5xl font-semibold tracking-[-.06em] sm:text-7xl">Your digital<br />property world.</h1></div><div><p>Every XLayer Estate token originated by or transferred to this wallet, discovered from ERC-1155 events and verified against current balances.</p><div className="mt-4 flex flex-wrap gap-3"><button className="button button-ghost" onClick={() => portfolio.refetch()}>Refresh estate ↻</button><FaucetButton onMinted={() => portfolio.refetch()} /></div></div></div>
+    {!isConnected && <div className="estate-empty glass-panel"><span>⌁</span><p className="kicker">Wallet not connected</p><h2>Connect to enter your estate.</h2><p>Your issued properties, active markets, and fractional holdings will assemble here.</p></div>}
+    {portfolio.isLoading && <div className="estate-loading">{[1,2,3].map((item) => <div className="estate-card animate-pulse" key={item} />)}</div>}
+    {portfolio.error && <div className="glass-panel p-5 text-red-200">The event index could not load. Check the RPC connection and retry.</div>}
+    {isConnected && !portfolio.isLoading && portfolio.data?.length === 0 && <div className="estate-empty glass-panel"><span>✦</span><p className="kicker">No digital property yet</p><h2>Build the first asset in this wallet.</h2><p>A clear photo is enough to begin. Confidential ownership documents are not required.</p><a className="button button-primary mt-6" href="/tokenize">Tokenize an asset ↗</a></div>}
+    <EstateSection title="Ready to list" subtitle="Issuer-owned assets that still need their first 10 USDC_TEST liquidity seed." assets={ready} address={address} />
+    <EstateSection title="Live properties" subtitle="Assets with active USDC_TEST markets." assets={listed} address={address} />
+    <EstateSection title="Fractional holdings" subtitle="Shares received or purchased from other issuers." assets={held} address={address} />
+  </div>;
 }
+function EstateSection({ title, subtitle, assets, address }: { title: string; subtitle: string; assets: Array<{ id: bigint; balance: bigint; info: AssetInfo; listed: boolean }>; address?: string }) { if (!assets.length) return null; return <section className="estate-section"><div><p className="kicker">{String(assets.length).padStart(2, "0")} properties</p><h2>{title}</h2><p>{subtitle}</p></div><div className="estate-grid">{assets.map((asset) => <AssetCard key={asset.id.toString()} id={asset.id} info={asset.info} chainId={xlayerTestnet.id} balance={asset.balance} listed={asset.listed} wallet={address} />)}</div></section>; }

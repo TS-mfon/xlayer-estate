@@ -9,9 +9,9 @@ gsap.registerPlugin(ScrollTrigger);
 
 const stages = [
   { eyebrow: "01 / CAPTURE", title: "A physical object enters the frame", body: "Upload a clear photo of a laptop, cup, camera, watch, vehicle, collectible, tool, or other lawful physical item—without exposing confidential ownership documents." },
-  { eyebrow: "02 / IDENTIFY", title: "Gemini recognizes the asset", body: "The visual agent identifies category, visible brand or model, condition, and non-sensitive evidence while rejecting manipulated, prohibited, or unrecognizable uploads." },
-  { eyebrow: "03 / VALUE", title: "Resale value becomes structured", body: "The agent estimates a conservative second-hand USD range, uses the lower bound for launch pricing, and attaches confidence and risk signals." },
-  { eyebrow: "04 / TOKENIZE", title: "The asset becomes programmable", body: "A signed EIP-712 authorization binds the report, image, wallet, valuation, and keccak256 hashes before one million ERC-1155 shares are minted." },
+  { eyebrow: "02 / GEMINI TWIN", title: "The asset gets a visual identity", body: "Gemini recognizes the object, then creates a gallery-grade digital twin without publishing the original source photo by default." },
+  { eyebrow: "03 / UNDERWRITE", title: "Evidence becomes a conservative record", body: "The evaluator checks that the object is real and recognizable, estimates second-hand value, and attaches confidence and risk signals." },
+  { eyebrow: "04 / MINT", title: "The record becomes programmable", body: "A signed authorization binds the report, image, wallet, valuation, and keccak256 hashes before one million ERC-1155 shares are minted." },
   { eyebrow: "05 / LIQUIDITY", title: "A market assembles around it", body: "The issuer seeds at least 10 USDC_TEST, permanent liquidity locks, and buyers or sellers trade with transparent fixed 0.20 USDC platform fees." },
 ];
 
@@ -31,7 +31,7 @@ export function BuildSequence() {
         scrollTrigger: {
           trigger: root.current,
           start: "top top",
-          end: "+=5200",
+          end: () => `+=${Math.max(window.innerHeight * 5.5, 3600)}`,
           pin: true,
           scrub: 1,
           invalidateOnRefresh: true,
@@ -42,10 +42,12 @@ export function BuildSequence() {
       });
 
       cards.forEach((card, index) => {
-        timeline.fromTo(card, { y: 44, opacity: 0, scale: 0.91, filter: "blur(10px)" }, { y: 0, opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.72, ease: "none" }, index * 0.92);
+        const start = index * 1.02;
+        timeline.fromTo(card, { y: 44, opacity: 0, scale: 0.91, filter: "blur(10px)" }, { y: 0, opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.62, ease: "none" }, start);
+        if (index < cards.length - 1) timeline.to(card, { y: -22, opacity: 0.08, scale: 0.97, duration: 0.42, ease: "none" }, start + 0.68);
       });
-      timeline.fromTo(".build-logo", { opacity: 0, scale: 0.55, filter: "blur(16px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.85, ease: "none" }, 4.62);
-      timeline.fromTo(".build-nav-reveal", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: "none" }, 5.38);
+      timeline.fromTo(".build-logo", { opacity: 0, scale: 0.55, filter: "blur(16px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.85, ease: "none" }, 5.18);
+      timeline.fromTo(".build-nav-reveal", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: "none" }, 5.82);
     }, root);
     return () => context.revert();
   }, []);

@@ -190,9 +190,16 @@ NFT metadata contains an image, report URI, report hash, conservative valuation,
 risk, category, condition, evidence score, authenticity score, and an explicit
 self-attested ownership attribute.
 
-When Pinata is enabled, uploaded material may be public and persistent on IPFS.
-Users must not upload confidential files. Without Pinata, the demonstration uses
-data URIs and does not rely on Vercel's ephemeral filesystem.
+The original source is evaluated but is not published by the metadata pipeline.
+An approved evaluation can generate at most two asset-twin candidates. The
+selected twin, sanitized report, and metadata are stored in a dedicated GitHub
+demo media repository when configured; immutable references use the commit SHA.
+Without that integration, the demonstration uses content-addressed data URIs and
+does not rely on Vercel's ephemeral filesystem.
+
+GitHub is a hackathon persistence layer, not protocol-grade decentralized or
+permanent storage. A production release should migrate immutable artifacts to a
+content-addressed storage network while preserving the on-chain hashes.
 
 ## 10. Compatibility
 

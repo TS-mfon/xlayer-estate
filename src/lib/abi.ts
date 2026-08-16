@@ -1,4 +1,6 @@
 export const rwaAbi = [
+  { type: "event", name: "TransferSingle", anonymous: false, inputs: [{ name: "operator", type: "address", indexed: true }, { name: "from", type: "address", indexed: true }, { name: "to", type: "address", indexed: true }, { name: "id", type: "uint256", indexed: false }, { name: "value", type: "uint256", indexed: false }] },
+  { type: "event", name: "TransferBatch", anonymous: false, inputs: [{ name: "operator", type: "address", indexed: true }, { name: "from", type: "address", indexed: true }, { name: "to", type: "address", indexed: true }, { name: "ids", type: "uint256[]", indexed: false }, { name: "values", type: "uint256[]", indexed: false }] },
   { type: "event", name: "AssetTokenized", anonymous: false, inputs: [
     { name: "tokenId", type: "uint256", indexed: true }, { name: "owner", type: "address", indexed: true }, { name: "valuationUsd", type: "uint256", indexed: false }, { name: "launchValuationUsd", type: "uint256", indexed: false }, { name: "riskScore", type: "uint8", indexed: false }, { name: "underwritingHash", type: "bytes32", indexed: false }, { name: "metadataHash", type: "bytes32", indexed: false }, { name: "metadataURI", type: "string", indexed: false },
   ] },
@@ -13,6 +15,7 @@ export const rwaAbi = [
   { type: "function", name: "totalAssets", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
   { type: "function", name: "setStatus", stateMutability: "nonpayable", inputs: [{ name: "tokenId", type: "uint256" }, { name: "newStatus", type: "uint8" }], outputs: [] },
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }, { name: "id", type: "uint256" }], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "balanceOfBatch", stateMutability: "view", inputs: [{ name: "accounts", type: "address[]" }, { name: "ids", type: "uint256[]" }], outputs: [{ name: "", type: "uint256[]" }] },
   { type: "function", name: "setApprovalForAll", stateMutability: "nonpayable", inputs: [{ name: "operator", type: "address" }, { name: "approved", type: "bool" }], outputs: [] },
   { type: "function", name: "isApprovedForAll", stateMutability: "view", inputs: [{ name: "account", type: "address" }, { name: "operator", type: "address" }], outputs: [{ name: "", type: "bool" }] },
 ] as const;
@@ -36,6 +39,7 @@ export const marketplaceAbi = [
 ] as const;
 
 export const erc20Abi = [
+  { type: "function", name: "mint", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [] },
   { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ name: "", type: "bool" }] },
   { type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] },
