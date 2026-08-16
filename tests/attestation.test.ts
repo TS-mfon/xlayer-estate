@@ -78,6 +78,7 @@ test("asset image approvals bind the selected twin to its report", () => {
     promptVersion: "asset-twin-v1",
     attempt: 1,
     originalSourcePublished: false,
+    sourcePhotoUsed: false,
     storage: "github" as const,
   };
   const token = issueImageToken(claims, image);

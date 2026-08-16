@@ -33,8 +33,11 @@ sell securities.
    addresses, deeds, or ownership paperwork.
 3. **Underwrite** — Gemini returns an asset category, visible brand/model,
    condition, conservative resale valuation range, confidence, and risk flags.
-4. **Build twin** — Gemini generates a gallery-style asset image. A server HMAC
-   binds the selected twin to the approved report so the browser cannot swap it.
+4. **Build twin** — Gemini attempts a gallery-style asset image. If provider
+   image quota is unavailable, the protocol uses a metadata-stripped, resized
+   WebP derivative of the submitted photo. Non-image evidence receives a
+   deterministic protocol illustration. A server HMAC binds the selected twin
+   to the approved report so the browser cannot swap it.
 5. **Authorize** — the server signs a short-lived EIP-712 mint authorization.
    The browser cannot invent a report or bypass the underwriter.
 6. **Mint** — the connected wallet mints one million ERC-1155 shares. Metadata
@@ -72,8 +75,10 @@ not increase the AI valuation or claim that the item is worth 10 USDC.
 - A photo is enough for a first-pass demo; receipts and ownership documents are
   optional evidence, not mandatory inputs.
 - Gemini receives the uploaded file when `GEMINI_API_KEY` is configured.
-- The original upload is used for evaluation but is not published by the
-  metadata pipeline. The user reviews a Gemini-generated digital twin instead.
+- The original upload is used for evaluation but is never published as-is.
+  When Gemini image generation fails and the source is a photo, the pipeline
+  removes metadata, applies orientation, bounds dimensions, and publishes only
+  a compressed WebP derivative after displaying that fallback to the user.
 - The server stores no local files. With `GITHUB_MEDIA_TOKEN`, generated twins,
   sanitized reports, and NFT metadata are written to a dedicated demo media
   repository and referenced by commit-pinned raw URLs. Without it, the demo
@@ -82,6 +87,32 @@ not increase the AI valuation or claim that the item is worth 10 USDC.
 - GitHub demo storage is public and is not protocol-grade permanent storage.
   Never upload confidential material.
 - The application does not verify legal ownership or physical custody.
+
+## Asset twin generation API
+
+`POST /api/generate-image` accepts `multipart/form-data`. JSON requests are not
+supported because the same request may carry the source photo used for a safe
+fallback.
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `report` | yes | Approved underwriting report encoded as JSON. |
+| `evaluationToken` | yes | Short-lived server HMAC returned by `/api/underwrite`. |
+| `attempt` | yes | One-based image attempt number. |
+| `sourceFile` | no | JPEG, PNG, or WebP, maximum 4 MB; used only when Gemini returns no image. |
+| `wallet` | conditional | Connected wallet address for a wallet-approved regeneration. |
+| `signature` | conditional | Signature over the matching image approval message. |
+
+The returned `image.status` is `generated`, `fallback_photo`, or
+`fallback_svg`. The response also exposes `fallbackReason`, `storageWarning`,
+`originalSourcePublished`, and `sourcePhotoUsed`. Clients must show those
+disclosures before minting rather than silently labeling fallback media as an
+AI-generated portrait.
+
+Media persistence is fail-open for this testnet demo. When GitHub storage is
+unconfigured or temporarily unavailable, the API returns a compact data URI and
+a visible warning instead of blocking mint preparation. Data URIs are not a
+protocol-scale persistence strategy.
 
 ## Marketplace and fees
 
@@ -232,6 +263,41 @@ private keys, Gemini keys, media tokens, or session secrets.
 - `UNDERWRITER_PRIVATE_KEY` — server-only signing key; never use the deployer
   key here.
 - `UNDERWRITER_SESSION_SECRET` — HMAC secret for evaluation sessions.
+
+### Provision the public media repository
+
+Use a dedicated public repository. Do not grant the application write access
+to the source repository or to the rest of the account.
+
+```bash
+gh auth login -h github.com
+gh repo create TS-mfon/xlayer-estate-media \
+  --public \
+  --add-readme \
+  --description "Public generated media and metadata for XLayer Estate testnet assets"
+```
+
+Create a fine-grained GitHub personal access token with:
+
+- resource owner: `TS-mfon`;
+- repository access: only `xlayer-estate-media`;
+- repository permission: **Contents — Read and write**;
+- metadata permission: read-only;
+- a short expiration, such as 90 days.
+
+Add the token to Vercel without writing it to a tracked file:
+
+```bash
+read -rsp "GitHub media token: " GITHUB_MEDIA_TOKEN; echo
+printf '%s' "$GITHUB_MEDIA_TOKEN" | \
+  npx vercel env add GITHUB_MEDIA_TOKEN production --force --sensitive --yes
+unset GITHUB_MEDIA_TOKEN
+```
+
+Set `GITHUB_MEDIA_REPO=TS-mfon/xlayer-estate-media` and
+`GITHUB_MEDIA_BRANCH=main` in the same Vercel environment, then create a new
+deployment so Functions receive the variables. Never commit the token,
+`.env.local`, or `.env.build`.
 
 ## Deploy contracts
 

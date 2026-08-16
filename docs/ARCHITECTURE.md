@@ -13,7 +13,8 @@ Browser wallet
   ├─ approved report ──────→ Next.js /api/generate-image
   │                            ├─ maximum two attempts
   │                            ├─ Gemini-generated digital twin
-  │                            └─ deterministic SVG fallback
+  │                            ├─ sanitized source-photo fallback
+  │                            └─ deterministic illustration fallback
   │
   ├─ report + twin ────────→ Next.js /api/metadata
   │                            ├─ canonical report and metadata hashing
@@ -59,11 +60,19 @@ Browser wallet
 | Gemini key and signer key | Server environment only |
 | Deployer key | Deployment environment only |
 
+The image route contains provider failure instead of invalidating a successful
+asset evaluation. Photo evidence becomes a metadata-stripped, resized WebP
+derivative; non-image evidence becomes a deterministic illustration rendered to
+WebP. The selected artifact is HMAC-bound to the approved report before metadata
+creation. GitHub persistence failures degrade to an inline data URI and surface
+a warning instead of publishing the original upload or blocking minting.
+
 ## Failure behavior
 
 - Gemini unavailable: image/PDF inputs move to manual review; no mint signature.
 - Invalid evaluation token: metadata endpoint returns `403`.
-- Image generation failure: a deterministic estate-style SVG twin is used.
+- Image generation failure: a sanitized photo derivative is used when a source
+  photo exists; otherwise a deterministic estate-style illustration is used.
 - Media repository unavailable: content-addressed data URI fallback is used.
 - Expired/replayed/forged signature: registry transaction reverts.
 - Wrong network: frontend requests X Layer testnet switch.

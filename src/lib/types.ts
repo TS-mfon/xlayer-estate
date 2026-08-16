@@ -44,7 +44,10 @@ export interface GeneratedAssetImage {
   promptVersion: string;
   attempt: number;
   originalSourcePublished: boolean;
+  sourcePhotoUsed: boolean;
   storage: "github" | "data";
+  fallbackReason?: string;
+  storageWarning?: string;
 }
 
 export interface AssetMetadata {

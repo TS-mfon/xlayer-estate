@@ -30,8 +30,11 @@ Marketplace reads:
 1. POST evidence to `/api/underwrite`.
 2. Require `decision === "approved"`, `mintEligible === true`, and an
    `evaluationToken`.
-3. POST the report, token, and attempt number to `/api/generate-image`.
-4. Let the user review the generated twin. One regeneration is available because
+3. POST `multipart/form-data` to `/api/generate-image` with `report`,
+   `evaluationToken`, `attempt`, and optionally the original `sourceFile` when
+   it is a JPEG, PNG, or WebP no larger than 4 MB. Optional `wallet` and
+   `signature` fields bind a wallet-approved regeneration.
+4. Let the user review the returned twin. One regeneration is available because
    every evaluation allows at most two image attempts.
 5. POST the report, evaluation token, recipient, returned image record, and
    returned `imageToken` to `/api/metadata`. The image token prevents the
@@ -65,6 +68,12 @@ Generated images, reports, and metadata may use commit-pinned GitHub raw URLs or
 data URIs. Consumers should verify the on-chain metadata/report hashes, display
 the self-attested ownership warning, and must not relabel an asset as legally
 verified.
+
+The twin response distinguishes `generated`, `fallback_photo`, and
+`fallback_svg`. Integrators should present `fallbackReason` and `storageWarning`
+to the user. A photo fallback is a metadata-stripped, resized WebP derivative;
+the raw upload is never exposed. If durable media storage fails, the testnet API
+returns a data URI rather than failing the issuance flow.
 
 ## Portfolio indexing
 

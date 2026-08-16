@@ -8,6 +8,7 @@ import { xlayerTestnet } from "@/lib/chains";
 import { AssetCard, type AssetInfo } from "@/components/AssetCard";
 import { discoverWalletTokenIds } from "@/lib/events";
 import { FaucetButton } from "@/components/FaucetButton";
+import { RouteHero, RouteMetric } from "@/components/RouteHero";
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount(); const client = usePublicClient({ chainId: xlayerTestnet.id });
@@ -26,7 +27,7 @@ export default function DashboardPage() {
   const held = portfolio.data?.filter((asset) => asset.balance > 0n && asset.info.owner.toLowerCase() !== address?.toLowerCase()) ?? [];
 
   return <div className="page-frame estate-dashboard">
-    <div className="section-heading"><div><p className="kicker">Wallet estate / event indexed</p><h1 className="text-5xl font-semibold tracking-[-.06em] sm:text-7xl">Your digital<br />property world.</h1></div><div><p>Every XLayer Estate token originated by or transferred to this wallet, discovered from ERC-1155 events and verified against current balances.</p><div className="mt-4 flex flex-wrap gap-3"><button className="button button-ghost" onClick={() => portfolio.refetch()}>Refresh estate ↻</button><FaucetButton onMinted={() => portfolio.refetch()} /></div></div></div>
+    <RouteHero eyebrow="Wallet estate / event indexed" title={<>Your digital<br/>property world.</>} description="Every XLayer Estate token originated by or transferred to this wallet, discovered from ERC-1155 events and verified against current balances." actions={<><button className="button button-ghost" onClick={() => portfolio.refetch()}>Refresh estate ↻</button><FaucetButton onMinted={() => portfolio.refetch()} /></>} aside={<><RouteMetric label="Ready" value={String(ready.length).padStart(2,"0")}/><RouteMetric label="Markets" value={String(listed.length).padStart(2,"0")} tone="green"/><RouteMetric label="Holdings" value={String(held.length).padStart(2,"0")} tone="amber"/></>} />
     {!isConnected && <div className="estate-empty glass-panel"><span>⌁</span><p className="kicker">Wallet not connected</p><h2>Connect to enter your estate.</h2><p>Your issued properties, active markets, and fractional holdings will assemble here.</p></div>}
     {portfolio.isLoading && <div className="estate-loading">{[1,2,3].map((item) => <div className="estate-card animate-pulse" key={item} />)}</div>}
     {portfolio.error && <div className="glass-panel p-5 text-red-200">The event index could not load. Check the RPC connection and retry.</div>}

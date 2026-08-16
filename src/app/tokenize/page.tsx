@@ -13,6 +13,7 @@ import { RWA_ADDRESS, TOTAL_SHARES, explorerTx } from "@/lib/config";
 import { xlayerTestnet } from "@/lib/chains";
 import { friendlyError, responseError } from "@/lib/errors";
 import type { GeneratedAssetImage, UnderwritingReport as Report, UnderwritingResponse } from "@/lib/types";
+import { RouteHero, RouteMetric } from "@/components/RouteHero";
 
 type Phase = "idle" | "underwriting" | "image" | "review" | "minting" | "confirmed" | "error";
 
@@ -25,6 +26,7 @@ export default function TokenizePage() {
   const [report, setReport] = useState<Report | null>(null);
   const [evaluationToken, setEvaluationToken] = useState("");
   const [generatedImage, setGeneratedImage] = useState<GeneratedAssetImage | null>(null);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const [imageToken, setImageToken] = useState("");
   const [imageAttempt, setImageAttempt] = useState(1);
   const [error, setError] = useState("");
@@ -32,10 +34,14 @@ export default function TokenizePage() {
   const [tokenId, setTokenId] = useState("");
   const { data: receipt, isLoading: txPending, isSuccess: txConfirmed } = useWaitForTransactionReceipt({ hash: txHash, chainId: xlayerTestnet.id });
 
-  async function generateTwin(nextReport: Report, token: string, attempt: number) {
+  async function generateTwin(nextReport: Report, token: string, attempt: number, fallbackFile = sourceFile) {
     setPhase("image"); setError("");
     try {
-      const response = await fetch("/api/generate-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ report: nextReport, evaluationToken: token, attempt, wallet: address }) });
+      const form = new FormData();
+      form.append("report", JSON.stringify(nextReport)); form.append("evaluationToken", token); form.append("attempt", String(attempt));
+      if (address) form.append("wallet", address);
+      if (fallbackFile?.type.startsWith("image/")) form.append("sourceFile", fallbackFile);
+      const response = await fetch("/api/generate-image", { method: "POST", body: form });
       if (!response.ok) throw new Error(await responseError(response, "Asset twin generation failed"));
       const data = await response.json() as { image?: GeneratedAssetImage; imageToken?: string };
       if (!data.image || !data.imageToken) throw new Error("The image generator returned no approved asset twin");
@@ -44,14 +50,14 @@ export default function TokenizePage() {
   }
 
   async function onFile(file: File) {
-    setPhase("underwriting"); setError(""); setReport(null); setEvaluationToken(""); setGeneratedImage(null); setImageToken(""); setTxHash(undefined); setTokenId(""); setImageAttempt(1);
+    setPhase("underwriting"); setError(""); setReport(null); setEvaluationToken(""); setGeneratedImage(null); setImageToken(""); setSourceFile(file); setTxHash(undefined); setTokenId(""); setImageAttempt(1);
     try {
       const form = new FormData(); form.append("file", file);
       const response = await fetch("/api/underwrite", { method: "POST", body: form });
       if (!response.ok) throw new Error(await responseError(response, "Underwriting failed"));
       const data = await response.json() as UnderwritingResponse;
       setReport(data.report); setEvaluationToken(data.evaluationToken ?? "");
-      if (data.report.mintEligible && data.evaluationToken) await generateTwin(data.report, data.evaluationToken, 1);
+      if (data.report.mintEligible && data.evaluationToken) await generateTwin(data.report, data.evaluationToken, 1, file);
       else setPhase("review");
     } catch (caught) { setError(friendlyError(caught, "Underwriting failed")); setPhase("error"); }
   }
@@ -94,18 +100,20 @@ export default function TokenizePage() {
   const step = phase === "underwriting" ? 2 : phase === "image" || phase === "review" || phase === "error" ? 3 : phase === "minting" ? 4 : phase === "confirmed" ? 5 : 1;
 
   return <div className="page-frame asset-origin-page">
-    <div className="section-heading"><div><p className="kicker">Asset origination / X Layer 1952</p><h1 className="text-5xl font-semibold tracking-[-.06em] sm:text-7xl">Build a digital<br />property twin.</h1></div><p>Photograph a lawful physical item. Gemini identifies it, values it conservatively, creates a gallery-grade twin, and binds the final record on-chain.</p></div>
+    <RouteHero eyebrow="Asset origination / private evaluation" title={<>Build a digital<br/>property twin.</>} description="Photograph a lawful physical item. Gemini identifies it, values it conservatively, creates a gallery-grade twin, and binds the final record on X Layer." aside={<><RouteMetric label="Evidence" value="Photo first"/><RouteMetric label="Supply" value="1M shares" tone="amber"/><RouteMetric label="Network" value="X Layer 1952" tone="green"/></>} />
     <div className="protocol-steps">{["Capture", "Underwrite", "Twin", "Mint", "Liquidity"].map((label, index) => <span key={label} className={step > index ? "active" : ""}>{String(index + 1).padStart(2, "0")} / {label}</span>)}</div>
     {!isConnected && <Notice tone="warning">Connect a wallet before minting. You can still preview underwriting and the generated twin.</Notice>}
     {isConnected && wrongNetwork && <div className="glass-panel mb-4 flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-amber-200"><span>Switch to X Layer Testnet before signing.</span><AddNetworkButton /></div>}
     {contractMissing && <Notice tone="warning">The registry contract address is not configured.</Notice>}
-    {(phase === "idle" || phase === "underwriting") && <UploadDropzone onFile={onFile} onImage={() => undefined} loading={phase === "underwriting"} />}
+    {(phase === "idle" || phase === "underwriting") && <div className="origin-studio-grid"><UploadDropzone onFile={onFile} onImage={() => undefined} loading={phase === "underwriting"} /><aside className="origin-privacy-panel glass-panel"><div className="privacy-orbit"><span>◎</span></div><p className="kicker">Privacy boundary</p><h2>One photo. No confidential deed required.</h2><p>The source is evaluated in memory. If Gemini image generation is unavailable, the photo is stripped of metadata, resized, converted to WebP, and used as the public NFT visual.</p><div className="privacy-ledger"><span><b>01</b> Recognition</span><span><b>02</b> Conservative valuation</span><span><b>03</b> Tamper-evident hash</span></div></aside></div>}
     {report && <div className="grid gap-5 lg:grid-cols-[1.08fr_.92fr]">
       <UnderwritingReport report={report} />
       <div className="asset-twin-panel glass-panel">
         <div className="asset-twin-header"><div><p className="kicker">Gemini asset twin</p><h2>{phase === "image" ? "Constructing the property portrait…" : generatedImage ? "Review before mint" : "Twin unavailable"}</h2></div>{generatedImage && <span className="status-dot">{generatedImage.status.replace("_", " ")}</span>}</div>
         <div className={`asset-twin-stage ${phase === "image" ? "is-loading" : ""}`}>{generatedImage ? <Image src={generatedImage.uri} alt={`Generated digital twin of ${report.asset.name}`} fill sizes="(max-width: 1024px) 100vw, 42vw" unoptimized /> : <div className="asset-twin-empty"><span>✦</span><p>{report.mintEligible ? "Image generation needs a retry." : "Only approved assets receive a token image."}</p></div>}<div className="asset-twin-scan" /></div>
-        <p className="mt-4 text-xs leading-5 text-white/42">The twin is a stylized representation, not ownership evidence. Your original source file is not published by default.</p>
+        <p className="mt-4 text-xs leading-5 text-white/42">The twin is a visual representation, not ownership evidence. If Gemini is unavailable, an image upload is sanitized, stripped of metadata, converted to WebP, and used as the public NFT image.</p>
+        {generatedImage?.fallbackReason && <div className="twin-advisory">{generatedImage.fallbackReason}</div>}
+        {generatedImage?.storageWarning && <div className="twin-advisory is-warning">{generatedImage.storageWarning}</div>}
         <div className="mt-5 flex flex-wrap gap-3">{report.mintEligible && generatedImage && imageAttempt < 2 && <button className="button button-ghost" onClick={() => generateTwin(report, evaluationToken, 2)} disabled={phase === "image"}>Regenerate once ↻</button>}<button className="button button-primary" disabled={!canMint || phase === "minting" || txPending} onClick={onMint}>{phase === "minting" || txPending ? "Minting on X Layer…" : "Approve twin & mint ↗"}</button></div>
       </div>
     </div>}
