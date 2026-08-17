@@ -7,8 +7,9 @@ import { marketplaceAbi, rwaAbi } from "@/lib/abi";
 import { MARKETPLACE_ADDRESS, RWA_ADDRESS } from "@/lib/config";
 import { xlayerTestnet } from "@/lib/chains";
 import { discoverMarketplaceTokenIds } from "@/lib/events";
-import { AssetCard, type AssetInfo } from "@/components/AssetCard";
+import { AssetCard } from "@/components/AssetCard";
 import { RouteHero, RouteMetric } from "@/components/RouteHero";
+import { normalizeAssetInfo, type AssetInfo } from "@/lib/asset-info";
 
 export default function MarketplacePage() {
   const client = usePublicClient({ chainId: xlayerTestnet.id });
@@ -18,7 +19,7 @@ export default function MarketplacePage() {
     if (!client) return [];
     const ids = await discoverMarketplaceTokenIds(client);
     const results = await client.multicall({ contracts: ids.flatMap((id) => [{ address: RWA_ADDRESS, abi: rwaAbi, functionName: "assetInfo", args: [id] } as const, { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "pools", args: [id] } as const]), allowFailure: true });
-    return ids.map((id, index) => { const asset = results[index * 2]; const pool = results[index * 2 + 1]; if (asset.status !== "success" || pool.status !== "success") return null; const tuple = pool.result as readonly [bigint, bigint, bigint, bigint, boolean]; return tuple[4] ? { id, info: asset.result as unknown as AssetInfo, pool: tuple } : null; }).filter(Boolean) as Array<{ id: bigint; info: AssetInfo; pool: readonly [bigint, bigint, bigint, bigint, boolean] }>;
+    return ids.map((id, index) => { const asset = results[index * 2]; const pool = results[index * 2 + 1]; if (asset.status !== "success" || pool.status !== "success") return null; const info = normalizeAssetInfo(asset.result); const tuple = pool.result as readonly [bigint, bigint, bigint, bigint, boolean]; return info && tuple[4] ? { id, info, pool: tuple } : null; }).filter(Boolean) as Array<{ id: bigint; info: AssetInfo; pool: readonly [bigint, bigint, bigint, bigint, boolean] }>;
   }, staleTime: 30_000 });
   const visibleMarkets = useMemo(() => [...(markets.data ?? [])].filter((market) => !search || market.id.toString().includes(search) || market.info.owner.toLowerCase().includes(search.toLowerCase())).sort((a, b) => sort === "valuation" ? Number(b.info.valuationUsd - a.info.valuationUsd) : sort === "liquidity" ? Number(b.pool[1] - a.pool[1]) : Number(b.id - a.id)), [markets.data, search, sort]);
   const totalLiquidity = markets.data?.reduce((sum, market) => sum + Number(market.pool[1]) / 1e6, 0) ?? 0;

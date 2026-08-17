@@ -7,9 +7,9 @@ export const rwaAbi = [
   { type: "function", name: "tokenizeProperty", stateMutability: "nonpayable", inputs: [
     { name: "to", type: "address" }, { name: "valuationUsd", type: "uint256" }, { name: "launchValuationUsd", type: "uint256" }, { name: "riskScore", type: "uint8" }, { name: "underwritingHash", type: "bytes32" }, { name: "metadataHash", type: "bytes32" }, { name: "metadataURI", type: "string" }, { name: "totalShares", type: "uint256" }, { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint256" }, { name: "signature", type: "bytes" },
   ], outputs: [{ name: "tokenId", type: "uint256" }] },
-  { type: "function", name: "assetInfo", stateMutability: "view", inputs: [{ name: "", type: "uint256" }], outputs: [{ name: "info", type: "tuple", components: [
+  { type: "function", name: "assetInfo", stateMutability: "view", inputs: [{ name: "", type: "uint256" }], outputs: [
     { name: "owner", type: "address" }, { name: "valuationUsd", type: "uint256" }, { name: "launchValuationUsd", type: "uint256" }, { name: "totalShares", type: "uint256" }, { name: "riskScore", type: "uint8" }, { name: "status", type: "uint8" }, { name: "underwritingHash", type: "bytes32" }, { name: "metadataHash", type: "bytes32" }, { name: "metadataURI", type: "string" }, { name: "timestamp", type: "uint64" },
-  ] }] },
+  ] },
   { type: "function", name: "getAssetMarketData", stateMutability: "view", inputs: [{ name: "tokenId", type: "uint256" }], outputs: [{ name: "owner", type: "address" }, { name: "launchValuationUsd", type: "uint256" }, { name: "totalShares", type: "uint256" }, { name: "status", type: "uint8" }] },
   { type: "function", name: "uri", stateMutability: "view", inputs: [{ name: "tokenId", type: "uint256" }], outputs: [{ name: "", type: "string" }] },
   { type: "function", name: "totalAssets", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
