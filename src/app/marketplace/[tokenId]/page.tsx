@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatUnits, parseUnits } from "viem";
 import { useAccount, useChainId, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { erc20Abi, marketplaceAbi, rwaAbi } from "@/lib/abi";
@@ -28,7 +28,9 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [metadata, setMetadata] = useState<AssetMetadata | null>(null);
-  const [notice, setNotice] = useState(searchParams?.intent === "list" ? "Mint confirmed. Complete the three launch steps below to open this market." : "");
+  const launchRef = useRef<HTMLDivElement>(null);
+  const launchScrolledRef = useRef(false);
+  const [notice, setNotice] = useState("");
   const empty = "0x0000000000000000000000000000000000000000" as const;
 
   const { data: asset, refetch: refetchAsset } = useReadContract({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "assetInfo", args: [tokenId], chainId: xlayerTestnet.id });
@@ -73,20 +75,47 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
   const hasSeedFunds = (usdcBalance ?? 0n) >= seedApprovalRaw;
   const listingStep = !approved ? 1 : (allowance ?? 0n) < seedApprovalRaw ? 2 : 3;
   const image = metadata?.image ? metadataGateway(metadata.image) : "";
+  const launchIntent = searchParams?.intent === "list";
+
+  useEffect(() => {
+    if (!launchIntent || active || !info || !issuer || launchScrolledRef.current) return;
+    launchScrolledRef.current = true;
+    const frame = window.requestAnimationFrame(() => {
+      const launch = launchRef.current;
+      if (!launch) {
+        launchScrolledRef.current = false;
+        return;
+      }
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      launch.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+      window.setTimeout(() => launch.querySelector<HTMLElement>("[data-launch-heading]")?.focus({ preventScroll: true }), reduceMotion ? 0 : 450);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [active, info, issuer, launchIntent]);
+
+  function jumpToLaunch() {
+    launchRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    launchRef.current?.querySelector<HTMLElement>("[data-launch-heading]")?.focus({ preventScroll: true });
+  }
 
   return <div className="page-frame liquidity-desk">
     <RouteHero eyebrow={`Liquidity desk / asset #${params.tokenId}`} title={<>Fund the<br/>asset market.</>} description="USDC_TEST is the settlement asset; OKB is gas only. Every approval, fee, reserve change, and output quote remains visible before signing." aside={<><RouteMetric label="Market" value={active ? "Live" : "Unlisted"} tone={active ? "green" : "amber"}/><RouteMetric label="Your shares" value={Number(shareBalance ?? 0n).toLocaleString()}/><RouteMetric label="USDC" value={Number(formatUnits(usdcBalance ?? 0n,6)).toFixed(2)}/></>} />
     <div className="asset-command-bar"><span><i className={active ? "is-live" : ""}/>{active ? "Live market" : "Awaiting issuer liquidity"}</span><span>Fee collector {FEE_COLLECTOR.slice(0,8)}…{FEE_COLLECTOR.slice(-5)}</span><span>Fixed action fee $0.20</span></div>
     {!isConnected && <Panel tone="warning">Connect the wallet that owns or wants to trade this asset.</Panel>}
     {isConnected && wrongNetwork && <div className="glass-panel mb-4 flex items-center justify-between gap-3 p-4 text-amber-100"><span>Switch to X Layer Testnet to continue.</span><AddNetworkButton /></div>}
-    {notice && <Panel tone="success">{notice}</Panel>}{error && <Panel tone="error">{error}</Panel>}
+    {notice && <Panel tone="success">{notice}</Panel>}
+    {launchIntent && !active && !isConnected && <Panel tone="warning">Connect the wallet that minted this asset to continue the three launch steps.</Panel>}
+    {launchIntent && !active && isConnected && !info && <Panel tone="warning">Loading the issuer record and launch sequence…</Panel>}
+    {launchIntent && !active && isConnected && info && !issuer && <Panel tone="warning">This wallet does not own the issuer position. Reconnect the wallet that minted this asset to open its market.</Panel>}
+    {launchIntent && !active && issuer && <Panel tone="success"><div className="launch-notice"><span>Mint confirmed. Complete the three launch steps to open this market.</span><button className="button button-ghost" onClick={jumpToLaunch}>Go to launch steps ↓</button></div></Panel>}
+    {error && <Panel tone="error">{error}</Panel>}
     {info && <div className="market-detail-grid">
       <section className="asset-gallery glass-panel">
         <div className="asset-gallery-media">{image ? <Image src={image} alt={metadata?.name ?? `Asset ${params.tokenId}`} fill sizes="(max-width: 1024px) 100vw, 55vw" unoptimized/> : <div className="asset-gallery-placeholder"><span>✦</span><small>Asset twin loading</small></div>}<div className="gallery-scan"/><span className="gallery-index">PROPERTY / {params.tokenId.padStart(4,"0")}</span></div>
         <div className="asset-gallery-copy"><p className="kicker">On-chain property record</p><h2>{metadata?.name ?? `Asset #${params.tokenId}`}</h2><p>{metadata?.description ?? "AI-underwritten physical asset record secured on X Layer."}</p><div className="ledger-stats"><Stat label="AI valuation" value={`$${Number(info.valuationUsd ?? 0n).toLocaleString()}`} /><Stat label="Launch valuation" value={`$${Number(info.launchValuationUsd ?? 0n).toLocaleString()}`} /><Stat label="Risk" value={`${Number(info.riskScore ?? 0)}/100`} /><Stat label="Your shares" value={Number(shareBalance ?? 0n).toLocaleString()} /></div>{active && poolTuple && <div className="live-pool"><p className="kicker">Live pool telemetry</p><div className="ledger-stats"><Stat label="Share reserve" value={Number(poolTuple[0]).toLocaleString()} /><Stat label="USDC reserve" value={`${Number(formatUnits(poolTuple[1], 6)).toFixed(2)} USDC`} /><Stat label="Spot price" value={`$${poolTuple[0] ? (Number(poolTuple[1]) / 1e6 / Number(poolTuple[0])).toFixed(5) : "0"}`} /><Stat label="Locked LP" value={poolTuple[3].toString()} /></div></div>}</div>
       </section>
       <aside className="transaction-console">
-        {!active && issuer && <div className="listing-wizard glass-panel"><div><p className="kicker">Launch sequence</p><h2>List this digital property</h2><p>The $10+ seed stays in the pool. The separate $0.20 listing fee funds the protocol.</p></div><div className="wizard-steps">{["Approve shares", "Approve USDC", "Create pool"].map((label, index) => <span className={listingStep > index + 1 ? "done" : listingStep === index + 1 ? "active" : ""} key={label}>{index + 1}<small>{label}</small></span>)}</div>
+        {!active && issuer && <div id="launch" ref={launchRef} className="listing-wizard glass-panel"><div><p className="kicker">Launch sequence</p><h2 data-launch-heading tabIndex={-1}>List this digital property</h2><p>The $10+ seed stays in the pool. The separate $0.20 listing fee funds the protocol.</p></div><div className="wizard-steps">{["Approve shares", "Approve USDC", "Create pool"].map((label, index) => <span className={listingStep > index + 1 ? "done" : listingStep === index + 1 ? "active" : ""} key={label}>{index + 1}<small>{label}</small></span>)}</div>
           <label className="field-label">Liquidity seed<input value={seedAmount} onChange={(event) => setSeedAmount(event.target.value)} inputMode="decimal" /><small>Required from wallet: {Number(formatUnits(seedApprovalRaw, 6)).toFixed(2)} USDC_TEST including listing fee.</small></label>
           {!hasSeedFunds && <div className="faucet-recovery"><p>You need at least {Number(formatUnits(seedApprovalRaw, 6)).toFixed(2)} USDC_TEST.</p><FaucetButton onMinted={() => refetchUsdc()} /></div>}
           {!approved && <button className="button button-primary w-full" disabled={Boolean(busy) || wrongNetwork} onClick={() => transact("Share approval", { address: RWA_ADDRESS, abi: rwaAbi, functionName: "setApprovalForAll", args: [MARKETPLACE_ADDRESS, true] })}>{busy || "Step 1 · Approve asset shares"}</button>}

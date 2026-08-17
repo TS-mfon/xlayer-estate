@@ -90,7 +90,7 @@ export default function TokenizePage() {
 
   useEffect(() => {
     if (phase !== "confirmed" || !tokenId) return;
-    const timer = window.setTimeout(() => router.push(`/marketplace/${tokenId}?intent=list`), 1800);
+    const timer = window.setTimeout(() => router.push(`/marketplace/${tokenId}?intent=list#launch`), 1800);
     return () => window.clearTimeout(timer);
   }, [phase, router, tokenId]);
 
