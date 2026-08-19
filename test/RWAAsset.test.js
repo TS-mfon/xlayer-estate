@@ -97,4 +97,58 @@ describe("XLayer Estate V2", function () {
     assert.equal(pool.shareReserve, 1_000_000n);
     assert.equal(pool.usdcReserve, 10_000_000n);
   });
+
+  it("allows approval before funding but blocks pool creation until seed plus fee are available", async function () {
+    const context = await fixture(); await mintAsset(context);
+    await context.usdc.connect(context.issuer).transfer(context.outsider.address, 90_000_000);
+    assert.equal(await context.usdc.balanceOf(context.issuer.address), 10_000_000n);
+    await context.rwa.connect(context.issuer).setApprovalForAll(await context.market.getAddress(), true);
+    await context.usdc.connect(context.issuer).approve(await context.market.getAddress(), 10_200_000);
+    assert.equal(await context.usdc.allowance(context.issuer.address, await context.market.getAddress()), 10_200_000n);
+    await expectRevert(context.market.connect(context.issuer).createPool(1, 10_000_000), "ERC20: transfer amount exceeds balance");
+    await context.usdc.mint(context.issuer.address, 200_000);
+    await context.market.connect(context.issuer).createPool(1, 10_000_000);
+    assert.equal((await context.market.pools(1)).active, true);
+  });
+
+  it("adds and removes only provider-owned liquidity while preserving the locked floor", async function () {
+    const context = await fixture(); await mintAsset(context);
+    const market = await context.market.getAddress();
+    await context.rwa.connect(context.issuer).setApprovalForAll(market, true);
+    await context.usdc.connect(context.issuer).approve(market, 30_200_000);
+    await context.market.connect(context.issuer).createPool(1, 10_000_000);
+    await context.market.connect(context.issuer).addLiquidity(1, 40, 20_000_000, 0);
+    const providerLiquidity = await context.market.liquidityOf(1, context.issuer.address);
+    assert.ok(providerLiquidity > 0n);
+    await expectRevert(context.market.connect(context.outsider).removeLiquidity(1, 1, 0, 0), "insufficient LP");
+    await context.market.connect(context.issuer).removeLiquidity(1, providerLiquidity, 0, 0);
+    const pool = await context.market.pools(1);
+    assert.equal(pool.totalLiquidity, pool.lockedLiquidity);
+    assert.ok(pool.shareReserve > 0n && pool.usdcReserve > 0n);
+  });
+
+  it("honors asset status and marketplace pause controls", async function () {
+    const context = await fixture(); await mintAsset(context);
+    const market = await context.market.getAddress();
+    await context.rwa.connect(context.issuer).setApprovalForAll(market, true);
+    await context.usdc.connect(context.issuer).approve(market, 10_200_000);
+    await context.market.pause();
+    await expectRevert(context.market.connect(context.issuer).createPool(1, 10_000_000), "Pausable: paused");
+    await context.market.unpause();
+    await context.market.connect(context.issuer).createPool(1, 10_000_000);
+    await context.rwa.connect(context.issuer).setStatus(1, 2);
+    await expectRevert(context.market.connect(context.buyer).buy(1, 1_000_000, 0, BigInt(Math.floor(Date.now() / 1000) + 600)), "asset not active");
+    await context.rwa.connect(context.issuer).setStatus(1, 1);
+    assert.ok(await context.market.quoteBuy(1, 1_000_000) > 0n);
+  });
+
+  it("rotates the underwriter without accepting signatures from the previous signer", async function () {
+    const context = await fixture();
+    await context.rwa.setUnderwriter(context.outsider.address);
+    const oldAuthorization = await authorization(context.rwa, context.underwriter, context.issuer, { nonce: 501n });
+    await expectRevert(context.rwa.tokenizeProperty(oldAuthorization.to, oldAuthorization.valuationUsd, oldAuthorization.launchValuationUsd, oldAuthorization.riskScore, oldAuthorization.underwritingHash, oldAuthorization.metadataHash, "ipfs://old", oldAuthorization.totalShares, oldAuthorization.nonce, oldAuthorization.deadline, oldAuthorization.signature), "invalid underwriting authorization");
+    const newAuthorization = await authorization(context.rwa, context.outsider, context.issuer, { nonce: 502n });
+    await context.rwa.tokenizeProperty(newAuthorization.to, newAuthorization.valuationUsd, newAuthorization.launchValuationUsd, newAuthorization.riskScore, newAuthorization.underwritingHash, newAuthorization.metadataHash, "ipfs://new", newAuthorization.totalShares, newAuthorization.nonce, newAuthorization.deadline, newAuthorization.signature);
+    assert.equal(await context.rwa.balanceOf(context.issuer.address, 1), 1_000_000n);
+  });
 });

@@ -11,6 +11,8 @@ import { AddNetworkButton } from "@/components/AddNetworkButton";
 import { FaucetButton } from "@/components/FaucetButton";
 import { RouteHero, RouteMetric } from "@/components/RouteHero";
 import { friendlyError } from "@/lib/errors";
+import { assertSuccessfulReceipt, simulateContractWrite } from "@/lib/transactions";
+import { listingLaunchState, MIN_SEED_USDC } from "@/lib/marketplace-state";
 import { normalizeAssetInfo, type AssetInfo } from "@/lib/asset-info";
 import type { AssetMetadata } from "@/lib/types";
 
@@ -64,10 +66,19 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
   const seedRaw = useMemo(() => safeUnits(seedAmount, 6), [seedAmount]);
   const buyQuote = useReadContract({ address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "quoteBuy", args: [tokenId, buyRaw], chainId: xlayerTestnet.id, query: { enabled: active && buyRaw > PLATFORM_FEE_USDC } });
   const sellQuote = useReadContract({ address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "quoteSell", args: [tokenId, sellRaw], chainId: xlayerTestnet.id, query: { enabled: active && sellRaw > 0n } });
-  const seedApprovalRaw = seedRaw + PLATFORM_FEE_USDC;
+  const launchState = listingLaunchState({
+    shareApproved: Boolean(approvalRead.data),
+    allowance: allowanceRead.data ?? 0n,
+    usdcBalance: usdcRead.data ?? 0n,
+    shareBalance: sharesRead.data ?? 0n,
+    seedUsdc: seedRaw,
+    platformFeeUsdc: PLATFORM_FEE_USDC,
+    launchValuationUsd: info?.launchValuationUsd ?? 0n,
+    totalShares: info?.totalShares ?? 0n,
+  });
+  const seedApprovalRaw = launchState.requiredAllowance;
   const buyNeedsApproval = (allowanceRead.data ?? 0n) < buyRaw;
-  const hasSeedFunds = (usdcRead.data ?? 0n) >= seedApprovalRaw;
-  const listingStep = !approvalRead.data ? 1 : (allowanceRead.data ?? 0n) < seedApprovalRaw ? 2 : 3;
+  const walletReadError = usdcRead.isError || sharesRead.isError || allowanceRead.isError || approvalRead.isError;
   const image = metadata?.image ? metadataGateway(metadata.image) : "";
 
   async function refreshReads() {
@@ -88,9 +99,11 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
     setLastTxHash(undefined);
     try {
       if (!client) throw new Error("X Layer RPC is not ready");
+      if (!address) throw new Error("Connect the issuer wallet before signing");
+      await simulateContractWrite(client, address, request as unknown as Record<string, unknown>);
       const hash = await writeContractAsync({ ...request, chainId: xlayerTestnet.id });
       setLastTxHash(hash);
-      await client.waitForTransactionReceipt({ hash });
+      assertSuccessfulReceipt(await client.waitForTransactionReceipt({ hash }));
       setNotice(`${label} confirmed on X Layer.`);
       await refreshReads();
     } catch (caught) {
@@ -125,16 +138,18 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
     {error && <Panel tone="error"><div className="launch-notice"><span>{error}</span><button className="button button-ghost" onClick={() => setError("")}>Dismiss</button></div></Panel>}
     {assetRead.isLoading && <LaunchLoading />}
     {assetRead.isError && <Panel tone="error"><div className="launch-notice"><span>The asset registry read failed. The listing actions cannot start until the on-chain record loads.</span><button className="button button-ghost" onClick={() => assetRead.refetch()}>Retry asset read ↻</button></div></Panel>}
+    {poolRead.isError && <Panel tone="error"><div className="launch-notice"><span>The marketplace pool state could not be read.</span><button className="button button-ghost" onClick={() => poolRead.refetch()}>Retry market read ↻</button></div></Panel>}
     {!assetRead.isLoading && !assetRead.isError && assetRead.data !== undefined && !info && <Panel tone="error"><div className="launch-notice"><span>The registry returned an unsupported asset record. Refresh after the frontend ABI is updated.</span><button className="button button-ghost" onClick={() => assetRead.refetch()}>Retry record ↻</button></div></Panel>}
 
-    {info && launchIntent && !active && <div className="launch-desk-grid">
+    {info && launchIntent && !active && !poolRead.isError && <div className="launch-desk-grid">
       <AssetSummary tokenId={params.tokenId} info={info} metadata={metadata} image={image} shareBalance={sharesRead.data ?? 0n} />
       <aside className="transaction-console">
         {!isConnected && <Panel tone="warning">Connect the wallet that minted this asset using the navigation wallet button.</Panel>}
         {isConnected && wrongNetwork && <div className="glass-panel flex items-center justify-between gap-3 p-4 text-amber-100"><span>Switch to X Layer Testnet to continue.</span><AddNetworkButton /></div>}
         {isConnected && !wrongNetwork && !issuer && <Panel tone="warning">This wallet is not the issuer. Connect {shortOwner(info.owner)} to approve shares and open the market.</Panel>}
         {isConnected && !wrongNetwork && issuer && walletReadsLoading && <LaunchLoading compact />}
-        {isConnected && !wrongNetwork && issuer && !walletReadsLoading && <LaunchWizard launchRef={launchRef} listingStep={listingStep} seedAmount={seedAmount} setSeedAmount={setSeedAmount} seedApprovalRaw={seedApprovalRaw} hasSeedFunds={hasSeedFunds} shareBalance={sharesRead.data ?? 0n} usdcBalance={usdcRead.data ?? 0n} busy={busy} approved={Boolean(approvalRead.data)} allowance={allowanceRead.data ?? 0n} onFaucet={() => usdcRead.refetch()} onApproveShares={() => transact("Share approval", { address: RWA_ADDRESS, abi: rwaAbi, functionName: "setApprovalForAll", args: [MARKETPLACE_ADDRESS, true] })} onApproveUsdc={() => transact("USDC approval", { address: USDC_ADDRESS, abi: erc20Abi, functionName: "approve", args: [MARKETPLACE_ADDRESS, seedApprovalRaw] })} onCreatePool={() => transact("Market creation", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "createPool", args: [tokenId, seedRaw] })} />}
+        {isConnected && !wrongNetwork && issuer && !walletReadsLoading && walletReadError && <Panel tone="error"><div className="launch-notice"><span>Wallet balances or approvals could not be loaded.</span><button className="button button-ghost" onClick={refreshReads}>Retry wallet reads ↻</button></div></Panel>}
+        {isConnected && !wrongNetwork && issuer && !walletReadsLoading && !walletReadError && <LaunchWizard launchRef={launchRef} launchState={launchState} seedAmount={seedAmount} setSeedAmount={setSeedAmount} shareBalance={sharesRead.data ?? 0n} usdcBalance={usdcRead.data ?? 0n} busy={busy} approved={Boolean(approvalRead.data)} allowance={allowanceRead.data ?? 0n} onFaucet={refreshReads} onApproveShares={() => transact("Share approval", { address: RWA_ADDRESS, abi: rwaAbi, functionName: "setApprovalForAll", args: [MARKETPLACE_ADDRESS, true] })} onApproveUsdc={() => transact("USDC approval", { address: USDC_ADDRESS, abi: erc20Abi, functionName: "approve", args: [MARKETPLACE_ADDRESS, seedApprovalRaw] })} onCreatePool={() => transact("Market creation", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "createPool", args: [tokenId, seedRaw] })} />}
       </aside>
     </div>}
 
@@ -154,18 +169,19 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
   </div>;
 }
 
-function LaunchWizard({ launchRef, listingStep, seedAmount, setSeedAmount, seedApprovalRaw, hasSeedFunds, shareBalance, usdcBalance, busy, approved, allowance, onFaucet, onApproveShares, onApproveUsdc, onCreatePool }: { launchRef: React.Ref<HTMLDivElement>; listingStep: number; seedAmount: string; setSeedAmount: (value: string) => void; seedApprovalRaw: bigint; hasSeedFunds: boolean; shareBalance: bigint; usdcBalance: bigint; busy: string; approved: boolean; allowance: bigint; onFaucet: () => void; onApproveShares: () => void; onApproveUsdc: () => void; onCreatePool: () => void }) {
+function LaunchWizard({ launchRef, launchState, seedAmount, setSeedAmount, shareBalance, usdcBalance, busy, approved, allowance, onFaucet, onApproveShares, onApproveUsdc, onCreatePool }: { launchRef: React.Ref<HTMLDivElement>; launchState: ReturnType<typeof listingLaunchState>; seedAmount: string; setSeedAmount: (value: string) => void; shareBalance: bigint; usdcBalance: bigint; busy: string; approved: boolean; allowance: bigint; onFaucet: () => void; onApproveShares: () => void; onApproveUsdc: () => void; onCreatePool: () => void }) {
   const seedRaw = safeUnits(seedAmount, 6);
   return <div id="launch" ref={launchRef} className="listing-wizard launch-wizard glass-panel">
-    <div><p className="kicker">Step {listingStep} of 3 / launch sequence</p><h2 data-launch-heading tabIndex={-1}>List this digital property</h2><p>Each confirmed transaction unlocks the next action. The $10+ seed remains in the pool; the separate $0.20 fee funds the protocol.</p></div>
-    <div className="wizard-steps">{["Approve shares", "Approve USDC", "Create pool"].map((label, index) => <span className={listingStep > index + 1 ? "done" : listingStep === index + 1 ? "active" : ""} key={label}>{index + 1}<small>{label}</small></span>)}</div>
+    <div><p className="kicker">Step {launchState.step} of 3 / launch sequence</p><h2 data-launch-heading tabIndex={-1}>List this digital property</h2><p>Each confirmed transaction unlocks the next action. The $10+ seed remains in the pool; the separate $0.20 fee funds the protocol.</p></div>
+    <div className="wizard-steps">{["Approve shares", "Approve USDC", "Create pool"].map((label, index) => <span className={launchState.step > index + 1 ? "done" : launchState.step === index + 1 ? "active" : ""} key={label}>{index + 1}<small>{label}</small></span>)}</div>
     <div className="launch-balance-grid"><Stat label="Your shares" value={shareBalance.toLocaleString()} /><Stat label="USDC_TEST" value={Number(formatUnits(usdcBalance, 6)).toFixed(2)} /><Stat label="USDC approved" value={Number(formatUnits(allowance, 6)).toFixed(2)} /></div>
-    <label className="field-label">Liquidity seed<input value={seedAmount} onChange={(event) => setSeedAmount(event.target.value)} inputMode="decimal" /><small>Wallet requirement: {Number(formatUnits(seedApprovalRaw, 6)).toFixed(2)} USDC_TEST including the $0.20 listing fee.</small></label>
-    {seedRaw < 10_000_000n && <div className="twin-advisory is-warning">The launch seed must be at least 10.00 USDC_TEST.</div>}
-    {!hasSeedFunds && <div className="faucet-recovery"><p>You need {Number(formatUnits(seedApprovalRaw, 6)).toFixed(2)} USDC_TEST to complete this launch.</p><FaucetButton onMinted={onFaucet} /></div>}
+    <label className="field-label">Liquidity seed<input value={seedAmount} onChange={(event) => setSeedAmount(event.target.value)} inputMode="decimal" /><small>Wallet requirement: {Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} USDC_TEST including the $0.20 listing fee. The pool will receive {launchState.requiredShares.toLocaleString()} shares.</small></label>
+    {!launchState.validSeed && <div className="twin-advisory is-warning">The launch seed must be at least {Number(formatUnits(MIN_SEED_USDC, 6)).toFixed(2)} USDC_TEST.</div>}
+    {!launchState.hasShares && launchState.validSeed && <div className="twin-advisory is-warning">This wallet needs {launchState.requiredShares.toLocaleString()} shares to create the pool but currently has {shareBalance.toLocaleString()}.</div>}
+    {!launchState.hasFunds && <div className="faucet-recovery"><div><p>Balance shortfall: you have {Number(formatUnits(usdcBalance, 6)).toFixed(2)} of the required {Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} USDC_TEST.</p><small>Approval can be signed now; opening the pool stays locked until the balance covers the seed and fee.</small></div><FaucetButton onMinted={onFaucet} /></div>}
     {!approved && <button className="button button-primary w-full" disabled={Boolean(busy)} onClick={onApproveShares}>{busy || "Step 1 · Approve asset shares"}</button>}
-    {approved && allowance < seedApprovalRaw && <button className="button button-primary w-full" disabled={Boolean(busy) || !hasSeedFunds || seedRaw < 10_000_000n} onClick={onApproveUsdc}>{busy || `Step 2 · Approve ${Number(formatUnits(seedApprovalRaw, 6)).toFixed(2)} USDC`}</button>}
-    {approved && allowance >= seedApprovalRaw && <button className="button button-primary w-full" disabled={Boolean(busy) || !hasSeedFunds || seedRaw < 10_000_000n} onClick={onCreatePool}>{busy || "Step 3 · Open market ↗"}</button>}
+    {approved && allowance < launchState.requiredAllowance && <button className="button button-primary w-full" disabled={Boolean(busy) || !launchState.canApproveUsdc} onClick={onApproveUsdc}>{busy || `Step 2 · Approve ${Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} USDC_TEST allowance`}</button>}
+    {approved && allowance >= launchState.requiredAllowance && <button className="button button-primary w-full" disabled={Boolean(busy) || !launchState.canCreatePool} onClick={onCreatePool}>{busy || "Step 3 · Open market ↗"}</button>}
   </div>;
 }
 

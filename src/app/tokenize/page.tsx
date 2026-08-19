@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { decodeEventLog } from "viem";
-import { useAccount, useChainId, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { UnderwritingReport } from "@/components/UnderwritingReport";
 import { AddNetworkButton } from "@/components/AddNetworkButton";
@@ -14,6 +14,7 @@ import { xlayerTestnet } from "@/lib/chains";
 import { friendlyError, responseError } from "@/lib/errors";
 import type { GeneratedAssetImage, UnderwritingReport as Report, UnderwritingResponse } from "@/lib/types";
 import { RouteHero, RouteMetric } from "@/components/RouteHero";
+import { simulateContractWrite } from "@/lib/transactions";
 
 type Phase = "idle" | "underwriting" | "image" | "review" | "minting" | "confirmed" | "error";
 
@@ -21,6 +22,7 @@ export default function TokenizePage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+  const client = usePublicClient({ chainId: xlayerTestnet.id });
   const { writeContractAsync } = useWriteContract();
   const [phase, setPhase] = useState<Phase>("idle");
   const [report, setReport] = useState<Report | null>(null);
@@ -72,13 +74,21 @@ export default function TokenizePage() {
       if (!response.ok) throw new Error(await responseError(response, "Metadata preparation failed"));
       const metadata = await response.json() as { hash?: `0x${string}`; metadataHash?: `0x${string}`; uri?: string; nonce?: string; deadline?: string; signature?: `0x${string}` };
       if (!metadata.hash || !metadata.metadataHash || !metadata.uri || !metadata.nonce || !metadata.deadline || !metadata.signature) throw new Error("Mint authorization is incomplete");
-      const hash = await writeContractAsync({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "tokenizeProperty", chainId: xlayerTestnet.id, args: [address, BigInt(Math.round(report.valuationUsd)), BigInt(Math.round(report.launchValuationUsd)), Math.round(report.riskScore), metadata.hash, metadata.metadataHash, metadata.uri, TOTAL_SHARES, BigInt(metadata.nonce), BigInt(metadata.deadline), metadata.signature] });
+      if (!client) throw new Error("X Layer RPC is not ready");
+      const request = { address: RWA_ADDRESS, abi: rwaAbi, functionName: "tokenizeProperty", args: [address, BigInt(Math.round(report.valuationUsd)), BigInt(Math.round(report.launchValuationUsd)), Math.round(report.riskScore), metadata.hash, metadata.metadataHash, metadata.uri, TOTAL_SHARES, BigInt(metadata.nonce), BigInt(metadata.deadline), metadata.signature] } as const;
+      await simulateContractWrite(client, address, request as unknown as Record<string, unknown>);
+      const hash = await writeContractAsync({ ...request, chainId: xlayerTestnet.id });
       setTxHash(hash);
     } catch (caught) { setError(friendlyError(caught, "Mint failed")); setPhase("error"); }
   }
 
   useEffect(() => {
     if (!txConfirmed || !receipt) return;
+    if (receipt.status !== "success") {
+      setError("Mint transaction reverted on X Layer.");
+      setPhase("error");
+      return;
+    }
     for (const log of receipt.logs) {
       try {
         const decoded = decodeEventLog({ abi: rwaAbi, data: log.data, topics: log.topics });
