@@ -19,3 +19,5 @@ test-fixtures/real-estate/*.pdf
 *.tsbuildinfo
 .tmp/
 .env*
+.agents/
+skills-lock.json
