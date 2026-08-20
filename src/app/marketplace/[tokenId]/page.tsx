@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { formatUnits, parseUnits } from "viem";
 import { useAccount, useChainId, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { erc20Abi, marketplaceAbi, rwaAbi } from "@/lib/abi";
-import { explorerTx, FEE_COLLECTOR, MARKETPLACE_ADDRESS, PLATFORM_FEE_USDC, RWA_ADDRESS, USDC_ADDRESS, metadataGateway } from "@/lib/config";
-import { xlayerTestnet } from "@/lib/chains";
+import { explorerTx, PLATFORM_FEE_USDC, metadataGateway } from "@/lib/config";
+import { useProtocolNetwork } from "@/lib/network-context";
 import { AddNetworkButton } from "@/components/AddNetworkButton";
 import { FaucetButton } from "@/components/FaucetButton";
 import { RouteHero, RouteMetric } from "@/components/RouteHero";
@@ -24,8 +24,9 @@ const EMPTY_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 export default function MarketDetailPage({ params, searchParams }: { params: { tokenId: string }; searchParams?: { intent?: string } }) {
   const tokenId = BigInt(params.tokenId);
   const { address, isConnected } = useAccount();
+  const { network } = useProtocolNetwork();
   const chainId = useChainId();
-  const client = usePublicClient({ chainId: xlayerTestnet.id });
+  const client = usePublicClient({ chainId: network.id });
   const { writeContractAsync } = useWriteContract();
   const [buyAmount, setBuyAmount] = useState("10.20");
   const [sellAmount, setSellAmount] = useState("1");
@@ -38,18 +39,18 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
   const launchRef = useRef<HTMLDivElement>(null);
   const launchScrolledRef = useRef(false);
 
-  const assetRead = useReadContract({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "assetInfo", args: [tokenId], chainId: xlayerTestnet.id });
-  const poolRead = useReadContract({ address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "pools", args: [tokenId], chainId: xlayerTestnet.id });
-  const usdcRead = useReadContract({ address: USDC_ADDRESS, abi: erc20Abi, functionName: "balanceOf", args: [address ?? EMPTY_ADDRESS], chainId: xlayerTestnet.id, query: { enabled: Boolean(address) } });
-  const sharesRead = useReadContract({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "balanceOf", args: [address ?? EMPTY_ADDRESS, tokenId], chainId: xlayerTestnet.id, query: { enabled: Boolean(address) } });
-  const allowanceRead = useReadContract({ address: USDC_ADDRESS, abi: erc20Abi, functionName: "allowance", args: [address ?? EMPTY_ADDRESS, MARKETPLACE_ADDRESS], chainId: xlayerTestnet.id, query: { enabled: Boolean(address) } });
-  const approvalRead = useReadContract({ address: RWA_ADDRESS, abi: rwaAbi, functionName: "isApprovedForAll", args: [address ?? EMPTY_ADDRESS, MARKETPLACE_ADDRESS], chainId: xlayerTestnet.id, query: { enabled: Boolean(address) } });
+  const assetRead = useReadContract({ address: network.registry, abi: rwaAbi, functionName: "assetInfo", args: [tokenId], chainId: network.id });
+  const poolRead = useReadContract({ address: network.marketplace, abi: marketplaceAbi, functionName: "pools", args: [tokenId], chainId: network.id });
+  const usdcRead = useReadContract({ address: network.usdc, abi: erc20Abi, functionName: "balanceOf", args: [address ?? EMPTY_ADDRESS], chainId: network.id, query: { enabled: Boolean(address) } });
+  const sharesRead = useReadContract({ address: network.registry, abi: rwaAbi, functionName: "balanceOf", args: [address ?? EMPTY_ADDRESS, tokenId], chainId: network.id, query: { enabled: Boolean(address) } });
+  const allowanceRead = useReadContract({ address: network.usdc, abi: erc20Abi, functionName: "allowance", args: [address ?? EMPTY_ADDRESS, network.marketplace], chainId: network.id, query: { enabled: Boolean(address) } });
+  const approvalRead = useReadContract({ address: network.registry, abi: rwaAbi, functionName: "isApprovedForAll", args: [address ?? EMPTY_ADDRESS, network.marketplace], chainId: network.id, query: { enabled: Boolean(address) } });
   const info = normalizeAssetInfo(assetRead.data);
   const pool = poolRead.data as PoolRecord | undefined;
   const active = Boolean(pool?.[4]);
   const launchIntent = searchParams?.intent === "list";
   const issuer = Boolean(address && info?.owner.toLowerCase() === address.toLowerCase());
-  const wrongNetwork = chainId !== xlayerTestnet.id;
+  const wrongNetwork = chainId !== network.id;
   const walletReadsLoading = isConnected && (usdcRead.isLoading || sharesRead.isLoading || allowanceRead.isLoading || approvalRead.isLoading);
   const metadataUrl = info?.metadataURI ? metadataGateway(info.metadataURI) : "";
 
@@ -66,8 +67,8 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
   const buyRaw = useMemo(() => safeUnits(buyAmount, 6), [buyAmount]);
   const sellRaw = useMemo(() => { try { return BigInt(sellAmount || "0"); } catch { return 0n; } }, [sellAmount]);
   const seedRaw = useMemo(() => safeUnits(seedAmount, 6), [seedAmount]);
-  const buyQuote = useReadContract({ address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "quoteBuy", args: [tokenId, buyRaw], chainId: xlayerTestnet.id, query: { enabled: active && buyRaw > PLATFORM_FEE_USDC } });
-  const sellQuote = useReadContract({ address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "quoteSell", args: [tokenId, sellRaw], chainId: xlayerTestnet.id, query: { enabled: active && sellRaw > 0n } });
+  const buyQuote = useReadContract({ address: network.marketplace, abi: marketplaceAbi, functionName: "quoteBuy", args: [tokenId, buyRaw], chainId: network.id, query: { enabled: active && buyRaw > PLATFORM_FEE_USDC } });
+  const sellQuote = useReadContract({ address: network.marketplace, abi: marketplaceAbi, functionName: "quoteSell", args: [tokenId, sellRaw], chainId: network.id, query: { enabled: active && sellRaw > 0n } });
   const launchState = listingLaunchState({
     shareApproved: Boolean(approvalRead.data),
     allowance: allowanceRead.data ?? 0n,
@@ -103,12 +104,12 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
       if (!client) throw new Error("X Layer RPC is not ready");
       if (!address) throw new Error("Connect the issuer wallet before signing");
       await simulateContractWrite(client, address, request as unknown as Record<string, unknown>);
-      const hash = await writeContractAsync({ ...request, chainId: xlayerTestnet.id });
+      const hash = await writeContractAsync({ ...request, chainId: network.id });
       setLastTxHash(hash);
       assertSuccessfulReceipt(await client.waitForTransactionReceipt({ hash }));
-      setNotice(`${label} confirmed on X Layer.`);
+      setNotice(`${label} confirmed on ${network.label}.`);
       await refreshReads();
-      await fetch("/api/index/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ txHash: hash }) }).catch(() => undefined);
+      await fetch("/api/index/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ txHash: hash, chainId: network.id }) }).catch(() => undefined);
     } catch (caught) {
       setError(friendlyError(caught, `${label} failed`));
     } finally {
@@ -134,10 +135,10 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
 
   const launchTitle = launchIntent && !active ? <>Launch your<br/>asset market.</> : <>Fund the<br/>asset market.</>;
   return <div className="page-frame liquidity-desk">
-    <RouteHero eyebrow={`${launchIntent && !active ? "Guided launch" : "Liquidity desk"} / asset #${params.tokenId}`} title={launchTitle} description={launchIntent && !active ? "Complete three clear wallet actions: approve shares, approve USDC_TEST, then create the pool. The interface advances after every confirmed transaction." : "USDC_TEST is the settlement asset; OKB is gas only. Every approval, fee, reserve change, and output quote remains visible before signing."} aside={<><RouteMetric label="Market" value={active ? "Live" : "Unlisted"} tone={active ? "green" : "amber"}/><RouteMetric label="Your shares" value={sharesRead.isLoading ? "—" : Number(sharesRead.data ?? 0n).toLocaleString()}/><RouteMetric label="USDC" value={usdcRead.isLoading ? "—" : Number(formatUnits(usdcRead.data ?? 0n,6)).toFixed(2)}/></>} />
-    <div className="asset-command-bar"><span><i className={active ? "is-live" : ""}/>{active ? "Live market" : "Awaiting issuer liquidity"}</span><span>Fee collector {FEE_COLLECTOR.slice(0,8)}…{FEE_COLLECTOR.slice(-5)}</span><span>Fixed action fee $0.20</span></div>
+    <RouteHero eyebrow={`${launchIntent && !active ? "Guided launch" : "Liquidity desk"} / asset #${params.tokenId}`} title={launchTitle} description={launchIntent && !active ? `Complete three clear wallet actions: approve shares, approve ${network.settlementLabel}, then create the pool. The interface advances after every confirmed transaction.` : `${network.settlementLabel} is the settlement asset; OKB is gas only. Every approval, fee, reserve change, and output quote remains visible before signing.`} aside={<><RouteMetric label="Market" value={active ? "Live" : "Unlisted"} tone={active ? "green" : "amber"}/><RouteMetric label="Your shares" value={sharesRead.isLoading ? "—" : Number(sharesRead.data ?? 0n).toLocaleString()}/><RouteMetric label={network.settlementLabel} value={usdcRead.isLoading ? "—" : Number(formatUnits(usdcRead.data ?? 0n,6)).toFixed(2)}/></>} />
+    <div className="asset-command-bar"><span><i className={active ? "is-live" : ""}/>{active ? "Live market" : "Awaiting issuer liquidity"}</span><span>{network.label}</span><span>Fixed action fee $0.20</span></div>
 
-    {notice && <Panel tone="success"><div className="launch-notice"><span>{notice}</span>{lastTxHash && <a href={explorerTx(xlayerTestnet.id, lastTxHash)} target="_blank" rel="noreferrer">View transaction ↗</a>}</div></Panel>}
+    {notice && <Panel tone="success"><div className="launch-notice"><span>{notice}</span>{lastTxHash && <a href={explorerTx(network.id, lastTxHash)} target="_blank" rel="noreferrer">View transaction ↗</a>}</div></Panel>}
     {error && <Panel tone="error"><div className="launch-notice"><span>{error}</span><button className="button button-ghost" onClick={() => setError("")}>Dismiss</button></div></Panel>}
     {assetRead.isLoading && <LaunchLoading />}
     {assetRead.isError && <Panel tone="error"><div className="launch-notice"><span>The asset registry read failed. The listing actions cannot start until the on-chain record loads.</span><button className="button button-ghost" onClick={() => assetRead.refetch()}>Retry asset read ↻</button></div></Panel>}
@@ -148,11 +149,11 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
       <AssetSummary tokenId={params.tokenId} info={info} metadata={metadata} image={image} shareBalance={sharesRead.data ?? 0n} />
       <aside className="transaction-console">
         {!isConnected && <Panel tone="warning">Connect the wallet that minted this asset using the navigation wallet button.</Panel>}
-        {isConnected && wrongNetwork && <div className="glass-panel flex items-center justify-between gap-3 p-4 text-amber-100"><span>Switch to X Layer Testnet to continue.</span><AddNetworkButton /></div>}
+        {isConnected && wrongNetwork && <div className="glass-panel flex items-center justify-between gap-3 p-4 text-amber-100"><span>Switch to {network.label} to continue.</span><AddNetworkButton /></div>}
         {isConnected && !wrongNetwork && !issuer && <Panel tone="warning">This wallet is not the issuer. Connect {shortOwner(info.owner)} to approve shares and open the market.</Panel>}
         {isConnected && !wrongNetwork && issuer && walletReadsLoading && <LaunchLoading compact />}
         {isConnected && !wrongNetwork && issuer && !walletReadsLoading && walletReadError && <Panel tone="error"><div className="launch-notice"><span>Wallet balances or approvals could not be loaded.</span><button className="button button-ghost" onClick={refreshReads}>Retry wallet reads ↻</button></div></Panel>}
-        {isConnected && !wrongNetwork && issuer && !walletReadsLoading && !walletReadError && <LaunchWizard launchRef={launchRef} launchState={launchState} seedAmount={seedAmount} setSeedAmount={setSeedAmount} shareBalance={sharesRead.data ?? 0n} usdcBalance={usdcRead.data ?? 0n} busy={busy} approved={Boolean(approvalRead.data)} allowance={allowanceRead.data ?? 0n} onFaucet={refreshReads} onApproveShares={() => transact("Share approval", { address: RWA_ADDRESS, abi: rwaAbi, functionName: "setApprovalForAll", args: [MARKETPLACE_ADDRESS, true] })} onApproveUsdc={() => transact("USDC approval", { address: USDC_ADDRESS, abi: erc20Abi, functionName: "approve", args: [MARKETPLACE_ADDRESS, seedApprovalRaw] })} onCreatePool={() => transact("Market creation", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "createPool", args: [tokenId, seedRaw] })} />}
+        {isConnected && !wrongNetwork && issuer && !walletReadsLoading && !walletReadError && <LaunchWizard settlementLabel={network.settlementLabel} isTestnet={network.isTestnet} launchRef={launchRef} launchState={launchState} seedAmount={seedAmount} setSeedAmount={setSeedAmount} shareBalance={sharesRead.data ?? 0n} usdcBalance={usdcRead.data ?? 0n} busy={busy} approved={Boolean(approvalRead.data)} allowance={allowanceRead.data ?? 0n} onFaucet={refreshReads} onApproveShares={() => transact("Share approval", { address: network.registry, abi: rwaAbi, functionName: "setApprovalForAll", args: [network.marketplace, true] })} onApproveUsdc={() => transact(`${network.settlementLabel} approval`, { address: network.usdc, abi: erc20Abi, functionName: "approve", args: [network.marketplace, seedApprovalRaw] })} onCreatePool={() => transact("Market creation", { address: network.marketplace, abi: marketplaceAbi, functionName: "createPool", args: [tokenId, seedRaw] })} />}
       </aside>
     </div>}
 
@@ -162,8 +163,8 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
         <AssetSummary tokenId={params.tokenId} info={info} metadata={metadata} image={image} shareBalance={sharesRead.data ?? 0n} detailed pool={pool} />
         <aside className="transaction-console">
           {!isConnected && <Panel tone="warning">Connect a wallet to trade this asset.</Panel>}
-          {isConnected && wrongNetwork && <div className="glass-panel flex items-center justify-between gap-3 p-4 text-amber-100"><span>Switch to X Layer Testnet to continue.</span><AddNetworkButton /></div>}
-          {active && <><MarketPricePanel info={info} pool={pool} /><TradeBox title="Acquire shares" amount={buyAmount} setAmount={setBuyAmount} quote={`${Number(buyQuote.data ?? 0n).toLocaleString()} shares`} hint="Amount includes the fixed $0.20 buy fee." action={buyNeedsApproval ? () => transact("USDC approval", { address: USDC_ADDRESS, abi: erc20Abi, functionName: "approve", args: [MARKETPLACE_ADDRESS, buyRaw] }) : () => transact("Share purchase", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "buy", args: [tokenId, buyRaw, (buyQuote.data ?? 0n) * 99n / 100n, BigInt(Math.floor(Date.now() / 1000) + 600)] })} label={buyNeedsApproval ? "Approve USDC" : "Buy shares"} disabled={!isConnected || Boolean(busy) || wrongNetwork || buyRaw <= PLATFORM_FEE_USDC} /><TradeBox title="Release shares" amount={sellAmount} setAmount={setSellAmount} quote={`${Number(formatUnits(sellQuote.data ?? 0n, 6)).toFixed(4)} USDC net`} hint="The fixed $0.20 sell fee is deducted from proceeds." action={!approvalRead.data ? () => transact("Share approval", { address: RWA_ADDRESS, abi: rwaAbi, functionName: "setApprovalForAll", args: [MARKETPLACE_ADDRESS, true] }) : () => transact("Share sale", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "sell", args: [tokenId, sellRaw, (sellQuote.data ?? 0n) * 99n / 100n, BigInt(Math.floor(Date.now() / 1000) + 600)] })} label={!approvalRead.data ? "Approve shares" : "Sell shares"} disabled={!isConnected || Boolean(busy) || wrongNetwork || sellRaw <= 0n} /></>}
+          {isConnected && wrongNetwork && <div className="glass-panel flex items-center justify-between gap-3 p-4 text-amber-100"><span>Switch to {network.label} to continue.</span><AddNetworkButton /></div>}
+          {active && <><MarketPricePanel info={info} pool={pool} /><TradeBox title="Acquire shares" amount={buyAmount} setAmount={setBuyAmount} quote={`${Number(buyQuote.data ?? 0n).toLocaleString()} shares`} hint={`Amount includes the fixed $0.20 buy fee in ${network.settlementLabel}.`} action={buyNeedsApproval ? () => transact(`${network.settlementLabel} approval`, { address: network.usdc, abi: erc20Abi, functionName: "approve", args: [network.marketplace, buyRaw] }) : () => transact("Share purchase", { address: network.marketplace, abi: marketplaceAbi, functionName: "buy", args: [tokenId, buyRaw, (buyQuote.data ?? 0n) * 99n / 100n, BigInt(Math.floor(Date.now() / 1000) + 600)] })} label={buyNeedsApproval ? `Approve ${network.settlementLabel}` : "Buy shares"} disabled={!isConnected || Boolean(busy) || wrongNetwork || buyRaw <= PLATFORM_FEE_USDC} /><TradeBox title="Release shares" amount={sellAmount} setAmount={setSellAmount} quote={`${Number(formatUnits(sellQuote.data ?? 0n, 6)).toFixed(4)} ${network.settlementLabel} net`} hint={`The fixed $0.20 sell fee is deducted from ${network.settlementLabel} proceeds.`} action={!approvalRead.data ? () => transact("Share approval", { address: network.registry, abi: rwaAbi, functionName: "setApprovalForAll", args: [network.marketplace, true] }) : () => transact("Share sale", { address: network.marketplace, abi: marketplaceAbi, functionName: "sell", args: [tokenId, sellRaw, (sellQuote.data ?? 0n) * 99n / 100n, BigInt(Math.floor(Date.now() / 1000) + 600)] })} label={!approvalRead.data ? "Approve shares" : "Sell shares"} disabled={!isConnected || Boolean(busy) || wrongNetwork || sellRaw <= 0n} /></>}
           {!active && issuer && <a className="button button-primary" href={`/marketplace/${params.tokenId}?intent=list#launch`}>Start guided listing ↗</a>}
           {!active && !issuer && <Panel tone="warning">Only the original issuer can seed and open this market.</Panel>}
         </aside>
@@ -172,18 +173,18 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
   </div>;
 }
 
-function LaunchWizard({ launchRef, launchState, seedAmount, setSeedAmount, shareBalance, usdcBalance, busy, approved, allowance, onFaucet, onApproveShares, onApproveUsdc, onCreatePool }: { launchRef: React.Ref<HTMLDivElement>; launchState: ReturnType<typeof listingLaunchState>; seedAmount: string; setSeedAmount: (value: string) => void; shareBalance: bigint; usdcBalance: bigint; busy: string; approved: boolean; allowance: bigint; onFaucet: () => void; onApproveShares: () => void; onApproveUsdc: () => void; onCreatePool: () => void }) {
+function LaunchWizard({ settlementLabel, isTestnet, launchRef, launchState, seedAmount, setSeedAmount, shareBalance, usdcBalance, busy, approved, allowance, onFaucet, onApproveShares, onApproveUsdc, onCreatePool }: { settlementLabel: string; isTestnet: boolean; launchRef: React.Ref<HTMLDivElement>; launchState: ReturnType<typeof listingLaunchState>; seedAmount: string; setSeedAmount: (value: string) => void; shareBalance: bigint; usdcBalance: bigint; busy: string; approved: boolean; allowance: bigint; onFaucet: () => void; onApproveShares: () => void; onApproveUsdc: () => void; onCreatePool: () => void }) {
   const seedRaw = safeUnits(seedAmount, 6);
   return <div id="launch" ref={launchRef} className="listing-wizard launch-wizard glass-panel">
     <div><p className="kicker">Step {launchState.step} of 3 / launch sequence</p><h2 data-launch-heading tabIndex={-1}>List this digital property</h2><p>Each confirmed transaction unlocks the next action. The $10+ seed remains in the pool; the separate $0.20 fee funds the protocol.</p></div>
     <div className="wizard-steps">{["Approve shares", "Approve USDC", "Create pool"].map((label, index) => <span className={launchState.step > index + 1 ? "done" : launchState.step === index + 1 ? "active" : ""} key={label}>{index + 1}<small>{label}</small></span>)}</div>
-    <div className="launch-balance-grid"><Stat label="Your shares" value={shareBalance.toLocaleString()} /><Stat label="USDC_TEST" value={Number(formatUnits(usdcBalance, 6)).toFixed(2)} /><Stat label="USDC approved" value={Number(formatUnits(allowance, 6)).toFixed(2)} /></div>
-    <label className="field-label">Liquidity seed<input value={seedAmount} onChange={(event) => setSeedAmount(event.target.value)} inputMode="decimal" /><small>Wallet requirement: {Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} USDC_TEST including the $0.20 listing fee. The pool will receive {launchState.requiredShares.toLocaleString()} shares.</small></label>
-    {!launchState.validSeed && <div className="twin-advisory is-warning">The launch seed must be at least {Number(formatUnits(MIN_SEED_USDC, 6)).toFixed(2)} USDC_TEST.</div>}
+    <div className="launch-balance-grid"><Stat label="Your shares" value={shareBalance.toLocaleString()} /><Stat label={settlementLabel} value={Number(formatUnits(usdcBalance, 6)).toFixed(2)} /><Stat label={`${settlementLabel} approved`} value={Number(formatUnits(allowance, 6)).toFixed(2)} /></div>
+    <label className="field-label">Liquidity seed<input value={seedAmount} onChange={(event) => setSeedAmount(event.target.value)} inputMode="decimal" /><small>Wallet requirement: {Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} {settlementLabel} including the $0.20 listing fee. The pool will receive {launchState.requiredShares.toLocaleString()} shares.</small></label>
+    {!launchState.validSeed && <div className="twin-advisory is-warning">The launch seed must be at least {Number(formatUnits(MIN_SEED_USDC, 6)).toFixed(2)} {settlementLabel}.</div>}
     {!launchState.hasShares && launchState.validSeed && <div className="twin-advisory is-warning">This wallet needs {launchState.requiredShares.toLocaleString()} shares to create the pool but currently has {shareBalance.toLocaleString()}.</div>}
-    {!launchState.hasFunds && <div className="faucet-recovery"><div><p>Balance shortfall: you have {Number(formatUnits(usdcBalance, 6)).toFixed(2)} of the required {Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} USDC_TEST.</p><small>Approval can be signed now; opening the pool stays locked until the balance covers the seed and fee.</small></div><FaucetButton onMinted={onFaucet} /></div>}
+    {!launchState.hasFunds && <div className="faucet-recovery"><div><p>Balance shortfall: you have {Number(formatUnits(usdcBalance, 6)).toFixed(2)} of the required {Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} {settlementLabel}.</p><small>{isTestnet ? "Use the faucet or fund this wallet before opening the pool." : "Fund this wallet with real USDC before opening the mainnet pool."}</small></div>{isTestnet && <FaucetButton onMinted={onFaucet} />}</div>}
     {!approved && <button className="button button-primary w-full" disabled={Boolean(busy)} onClick={onApproveShares}>{busy || "Step 1 · Approve asset shares"}</button>}
-    {approved && allowance < launchState.requiredAllowance && <button className="button button-primary w-full" disabled={Boolean(busy) || !launchState.canApproveUsdc} onClick={onApproveUsdc}>{busy || `Step 2 · Approve ${Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} USDC_TEST allowance`}</button>}
+    {approved && allowance < launchState.requiredAllowance && <button className="button button-primary w-full" disabled={Boolean(busy) || !launchState.canApproveUsdc} onClick={onApproveUsdc}>{busy || `Step 2 · Approve ${Number(formatUnits(launchState.requiredAllowance, 6)).toFixed(2)} ${settlementLabel} allowance`}</button>}
     {approved && allowance >= launchState.requiredAllowance && <button className="button button-primary w-full" disabled={Boolean(busy) || !launchState.canCreatePool} onClick={onCreatePool}>{busy || "Step 3 · Open market ↗"}</button>}
   </div>;
 }

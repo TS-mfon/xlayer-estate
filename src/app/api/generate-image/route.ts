@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateImage, geminiModels } from "@/lib/gemini";
-import { hashText, imageApprovalMessage, issueImageToken, verifyEvaluationToken } from "@/lib/attestation";
+import { assertEvaluationChain, hashText, imageApprovalMessage, issueImageToken, verifyEvaluationToken } from "@/lib/attestation";
+import { isSupportedChainId, type SupportedChainId } from "@/lib/network";
 import { storeBytes } from "@/lib/github-storage";
 import type { GeneratedAssetImage, UnderwritingReport } from "@/lib/types";
 import { verifyMessage, type Address } from "viem";
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
   try {
     const report = JSON.parse(String(form.get("report") ?? "null")) as UnderwritingReport | null;
     const evaluationToken = String(form.get("evaluationToken") ?? "");
+    const chainId = Number(form.get("chainId") ?? "1952");
     const attempt = Math.max(1, Math.floor(Number(form.get("attempt") ?? 1)));
     const walletValue = String(form.get("wallet") ?? "");
     const signatureValue = String(form.get("signature") ?? "");
@@ -30,10 +32,12 @@ export async function POST(req: NextRequest) {
     const sourceFile = sourceFileValue instanceof File && sourceFileValue.size ? sourceFileValue : null;
 
     if (!report || !evaluationToken) return fail("MISSING_INPUT", "Approved report and evaluation token are required", 400);
+    if (!isSupportedChainId(chainId)) return fail("UNSUPPORTED_CHAIN", "Select X Layer testnet or mainnet", 400);
     if (sourceFile && (!sourceFile.type.startsWith("image/") || sourceFile.size > MAX_SOURCE_BYTES)) return fail("INVALID_SOURCE_IMAGE", "Fallback photos must be JPEG, PNG, or WebP and no larger than 4 MB", 415);
 
     const reportJson = serializeReport(report);
     const claims = verifyEvaluationToken(hashText(reportJson), evaluationToken);
+    assertEvaluationChain(claims, chainId as SupportedChainId);
     if (attempt > claims.maxImageAttempts) return fail("IMAGE_ATTEMPTS_EXHAUSTED", "Only one regeneration is available for each evaluation", 429);
     if (wallet && signature) {
       const valid = await verifyMessage({ address: wallet, message: imageApprovalMessage({ wallet, claims, attempt }), signature });

@@ -5,14 +5,11 @@ import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { injected } from "@wagmi/core";
 import { shortAddress } from "@/lib/format";
 import { AddNetworkButton } from "./AddNetworkButton";
-import { useAutoNetwork } from "@/lib/useAutoNetwork";
 
 export function WalletButton() {
   const { address, isConnected } = useAccount();
   const { connect, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
-  // Auto-switch the wallet to X Layer Testnet (chain 1952) once connected.
-  const { isPending: isSwitching } = useAutoNetwork();
 
   if (isConnected && address) {
     return (
@@ -31,10 +28,10 @@ export function WalletButton() {
   return (
     <button
       className="button button-primary"
-      disabled={isConnecting || isSwitching}
+      disabled={isConnecting}
       onClick={() => connect({ connector: injected() })}
     >
-      {isConnecting ? "Connecting…" : isSwitching ? "Switching network…" : "Connect Wallet"}
+      {isConnecting ? "Connecting…" : "Connect Wallet"}
     </button>
   );
 }

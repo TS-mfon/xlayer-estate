@@ -1,12 +1,10 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { keccak256, stringToBytes, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { RWA_ADDRESS } from "./config";
+import { getNetwork, type SupportedChainId } from "./network";
 import type { GeneratedAssetImage } from "./types";
 
-const CHAIN_ID = 1952;
 const EVALUATION_TTL_SECONDS = 30 * 60;
-const DOMAIN = { name: "XLayerEstate", version: "2", chainId: CHAIN_ID, verifyingContract: RWA_ADDRESS } as const;
 const TYPES = {
   MintAuthorization: [
     { name: "to", type: "address" }, { name: "valuationUsd", type: "uint256" },
@@ -24,6 +22,7 @@ export interface EvaluationClaims {
   issuedAt: number;
   expiresAt: number;
   maxImageAttempts: number;
+  chainId: SupportedChainId;
 }
 
 interface ImageClaims {
@@ -34,6 +33,7 @@ interface ImageClaims {
   uri: string;
   attempt: number;
   expiresAt: number;
+  chainId: SupportedChainId;
 }
 
 function requiredSecret(name: string) {
@@ -60,7 +60,7 @@ function verifiedPayload<T>(token: string): T {
   return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as T;
 }
 
-export function issueEvaluationToken(reportHash: Hex): { token: string; claims: EvaluationClaims } {
+export function issueEvaluationToken(reportHash: Hex, chainId: SupportedChainId = 1952): { token: string; claims: EvaluationClaims } {
   const now = Math.floor(Date.now() / 1000);
   const claims: EvaluationClaims = {
     version: 1,
@@ -69,6 +69,7 @@ export function issueEvaluationToken(reportHash: Hex): { token: string; claims: 
     issuedAt: now,
     expiresAt: now + EVALUATION_TTL_SECONDS,
     maxImageAttempts: 2,
+    chainId,
   };
   return { token: signedToken(claims), claims };
 }
@@ -82,6 +83,10 @@ export function verifyEvaluationToken(reportHash: Hex, token: string): Evaluatio
   return claims;
 }
 
+export function assertEvaluationChain(claims: EvaluationClaims, chainId: SupportedChainId) {
+  if (claims.chainId !== chainId) throw new Error("Evaluation belongs to a different X Layer network. Run underwriting again.");
+}
+
 export function issueImageToken(claims: EvaluationClaims, image: GeneratedAssetImage) {
   return signedToken({
     version: 1,
@@ -91,10 +96,11 @@ export function issueImageToken(claims: EvaluationClaims, image: GeneratedAssetI
     uri: image.uri,
     attempt: image.attempt,
     expiresAt: claims.expiresAt,
+    chainId: claims.chainId,
   } satisfies ImageClaims);
 }
 
-export function verifyImageToken(reportHash: Hex, image: GeneratedAssetImage, token: string) {
+export function verifyImageToken(reportHash: Hex, image: GeneratedAssetImage, token: string, chainId?: SupportedChainId) {
   let claims: ImageClaims;
   try { claims = verifiedPayload<ImageClaims>(token); }
   catch { throw new Error("Invalid asset image approval"); }
@@ -102,7 +108,8 @@ export function verifyImageToken(reportHash: Hex, image: GeneratedAssetImage, to
     && claims.reportHash.toLowerCase() === reportHash.toLowerCase()
     && claims.contentHash.toLowerCase() === image.contentHash.toLowerCase()
     && claims.uri === image.uri
-    && claims.attempt === image.attempt;
+    && claims.attempt === image.attempt
+    && (chainId === undefined || claims.chainId === chainId);
   if (!matches) throw new Error("Asset image approval does not match this report and twin");
   if (claims.expiresAt < Math.floor(Date.now() / 1000)) throw new Error("Asset image approval expired. Run underwriting again.");
   return claims;
@@ -120,12 +127,16 @@ export function imageApprovalMessage(args: { wallet: Address; claims: Evaluation
 }
 
 export async function signMintAuthorization(args: {
+  chainId: SupportedChainId;
   to: Address; valuationUsd: bigint; launchValuationUsd: bigint; riskScore: number;
   underwritingHash: Hex; metadataHash: Hex; totalShares: bigint; nonce: bigint; deadline: bigint;
 }) {
   const account = privateKeyToAccount(requiredSecret("UNDERWRITER_PRIVATE_KEY") as Hex);
-  const signatureValue = await account.signTypedData({ domain: DOMAIN, types: TYPES, primaryType: "MintAuthorization", message: args });
-  return { signature: signatureValue, underwriter: account.address };
+  const network = getNetwork(args.chainId);
+  const { chainId, ...message } = args;
+  const domain = { name: "XLayerEstate", version: "2", chainId, verifyingContract: network.registry } as const;
+  const signatureValue = await account.signTypedData({ domain, types: TYPES, primaryType: "MintAuthorization", message });
+  return { signature: signatureValue, underwriter: account.address, chainId, verifyingContract: network.registry };
 }
 
 export function hashText(value: string): Hex {

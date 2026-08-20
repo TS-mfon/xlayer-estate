@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { formatPercent, formatPrice, formatUsd, riskLabel, shortAddress } from "@/lib/format";
 import type { MarketPricing } from "@/lib/market-data";
-import { RWA_ADDRESS, explorerToken, metadataGateway } from "@/lib/config";
+import { explorerToken, metadataGateway } from "@/lib/config";
+import { getNetwork } from "@/lib/network";
 import type { AssetMetadata } from "@/lib/types";
 import type { AssetInfo } from "@/lib/asset-info";
 
@@ -21,7 +22,7 @@ export function AssetCard({ id, info, chainId, balance, listed, wallet, pricing 
     <div className="estate-card-media">{image ? <Image src={image} alt={metadata?.name ?? `Asset ${id}`} fill sizes="(max-width: 800px) 100vw, 33vw" unoptimized /> : <div className="estate-card-placeholder">✦</div>}<div className="estate-card-glow" /><span className="estate-card-number">PROPERTY / {id.toString().padStart(4, "0")}</span><span className={`estate-card-status ${listed ? "listed" : ""}`}>{listed ? "Market live" : STATUS[info.status] ?? "Unknown"}</span></div>
     <div className="estate-card-body"><div><p className="kicker">{metadata?.attributes.find((item) => item.trait_type === "Asset category")?.value ?? "Digital property"}</p><h2>{metadata?.name ?? `Asset #${id}`}</h2><p className="estate-card-owner">Issuer {shortAddress(info.owner)} {issuer ? "· you" : ""}</p></div>
       <div className="estate-card-stats">{pricing && <Stat label="Price / share" value={formatPrice(pricing.spotPricePerShare)} color={pricing.sinceLaunchChange !== null && pricing.sinceLaunchChange >= 0 ? "#83f9b0" : "#ff8e9e"} />}<Stat label="Market cap" value={pricing ? formatUsd(pricing.impliedMarketCap) : formatUsd(info.valuationUsd)} /><Stat label="AI value" value={formatUsd(info.valuationUsd)} /><Stat label="Risk" value={`${info.riskScore}/100`} color={risk.color} />{pricing && <Stat label="Change" value={formatPercent(pricing.sinceLaunchChange)} color={pricing.sinceLaunchChange !== null && pricing.sinceLaunchChange >= 0 ? "#83f9b0" : "#ff8e9e"} />}{balance !== undefined && <Stat label="Your shares" value={balance.toLocaleString()} />}</div>
-      <div className="estate-card-actions"><a className="button button-ghost" href={metadataUrl} target="_blank" rel="noreferrer">Record</a><a className="button button-ghost" href={explorerToken(chainId, RWA_ADDRESS, id)} target="_blank" rel="noreferrer">Explorer</a><a className="button button-primary" href={`/marketplace/${id}${issuer && !listed ? "?intent=list" : ""}`}>{issuer && !listed ? "List asset" : listed ? "Trade / manage" : "View asset"} ↗</a></div>
+      <div className="estate-card-actions"><a className="button button-ghost" href={metadataUrl} target="_blank" rel="noreferrer">Record</a><a className="button button-ghost" href={explorerToken(chainId, getNetwork(chainId).registry, id)} target="_blank" rel="noreferrer">Explorer</a><a className="button button-primary" href={`/marketplace/${id}${issuer && !listed ? "?intent=list" : ""}`}>{issuer && !listed ? "List asset" : listed ? "Trade / manage" : "View asset"} ↗</a></div>
     </div>
   </motion.article>;
 }

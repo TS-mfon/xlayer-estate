@@ -11,13 +11,38 @@
 - [Deployment and operations](docs/OPERATIONS.md)
 - [Cinematic interface specification](DESIGN_PROMPT.md)
 
-XLayer Estate lets a user upload a clear photo or a supporting record for a
+XLayer Estate lets a user upload a clear original photo or a supporting record for a
 physical item—such as a laptop, phone, camera, watch, cup, furniture, vehicle,
 collectible, tool, appliance, or piece of equipment. Gemini identifies the
 asset, estimates conservative second-hand value, flags obvious risk, and
 returns a structured report. An approved report receives a server-side EIP-712
-authorization and can be minted as an image-bearing ERC-1155 token on X Layer
-testnet.
+authorization and can be minted as an image-bearing ERC-1155 token on the
+selected X Layer network. Testnet is available today; mainnet activates only
+after fresh chain-196 contracts and settlement addresses are configured.
+
+## AI RWE track justification
+
+The AI is part of the economic control path rather than a cosmetic chatbot.
+Gemini performs visual evidence gating, physical-asset classification,
+condition extraction, conservative resale valuation, confidence scoring, and
+risk flagging. The server hashes that canonical report and issues a short-lived
+EIP-712 authorization for the selected chain and registry. Without the approved
+AI report, matching asset image approval, metadata hash, and underwriter
+signature, `RWAAsset.tokenizeProperty` cannot mint the one-million-share asset.
+The resulting registry, liquidity seed, protocol fees, reserve changes, and
+fractional trades settle on X Layer.
+
+## Dual-network status
+
+The global navigation includes a persistent X Layer network switcher. Testnet
+is the default. Mainnet remains visibly disabled until all
+`NEXT_PUBLIC_MAINNET_*` contract variables are present, preventing accidental
+zero-address reads, signatures, approvals, or transactions.
+
+| Network | Chain ID | Settlement | Current status |
+| --- | ---: | --- | --- |
+| X Layer Testnet | `1952` | `USDC_TEST` | Registry, marketplace, indexer, and live dApp available |
+| X Layer Mainnet | `196` | Verified six-decimal `USDC` | Deployment and explorer verification required |
 
 The token represents **fractional exposure to a self-attested asset record**.
 It does not prove legal ownership, transfer title, custody, authenticity, or a
@@ -27,7 +52,8 @@ sell securities.
 
 ## Product flow
 
-1. **Upload** — submit an asset photo or optional supporting document.
+1. **Upload** — submit an original asset photo. Supporting documents may add
+   context but cannot replace the photo for mint authorization.
 2. **AI gate** — Gemini checks that the upload shows a recognizable, lawful,
    tangible asset. It does not require private receipts, identity documents,
    addresses, deeds, or ownership paperwork.
@@ -44,23 +70,27 @@ sell securities.
    includes the uploaded/generated image and a keccak256 report hash.
 7. **List** — the issuer approves the marketplace, supplies matching shares and
    at least 10 USDC_TEST, and pays the fixed listing fee.
-8. **Trade** — buyers and sellers swap fractional shares against USDC_TEST in a
-   constant-product AMM with slippage and deadline protection.
+8. **Trade** — buyers and sellers swap fractional shares against the selected
+   network's USDC in a constant-product AMM with slippage and deadline
+   protection.
 
 ## What can be uploaded?
 
-The preferred input is a clear photo of a physical item. Examples:
+The required primary input is a clear original photo of a physical item.
+Examples:
 
 - laptop, phone, tablet, monitor, camera, lens, headphones, or game console;
 - watch, jewellery, fashion item, furniture, appliance, tool, or equipment;
 - bicycle, vehicle, machine, collectible, instrument, artwork, or other lawful
   tangible goods;
 - a non-confidential receipt, public listing, serial-number record, appraisal,
-  or product record as additional evidence.
+  or product record as additional context only.
 
-The system may reject people, animals, food, services, ideas, financial
-instruments, illegal goods, weapons, blank files, screenshots without a visible
-asset, unrecognizable images, manipulated evidence, and contradictory records.
+The system rejects documents without an original photo as primary evidence and
+may reject people, animals, food, services, ideas, financial instruments, illegal
+goods, weapons, blank files, screenshots without a visible asset, unrecognizable
+images, manipulated evidence, stock/catalog images, downloaded product photos,
+watermarked commercial media, and contradictory records.
 Ownership is always displayed as **self-attested / not verified**.
 
 Low-value objects are supported. If an asset is worth less than the mandatory
@@ -354,6 +384,31 @@ NEXT_PUBLIC_USDC_ADDRESS=0xcb8bf24c6ce16ad21d707c9505421a17f2bec79d
 NEXT_PUBLIC_FEE_COLLECTOR=0x5905c9Dea6Ae52AA0947D8F7F218263889eDfC4E
 ```
 
+### Mainnet deployment gate
+
+Mainnet deployment is deliberately confirmation-gated. Configure
+`XLAYER_MAINNET_RPC`, `MAINNET_USDC_ADDRESS`, `MAINNET_FEE_COLLECTOR`, the
+deployer key, and the underwriter address in the ignored `.env.build`, then run:
+
+```bash
+npm run compile
+npm run preflight:mainnet
+```
+
+The read-only preflight verifies chain ID `196`, settlement-token bytecode,
+`USDC` symbol, six decimals, required contract artifacts, and deployer balance.
+It never broadcasts a transaction. After reviewing its output and funding the
+deployer with mainnet OKB, explicitly authorize the deployment:
+
+```bash
+CONFIRM_MAINNET_DEPLOY=YES npm run deploy:mainnet
+```
+
+The deployer prints fresh registry, marketplace, deployment-block, and Vercel
+environment values. Never reuse testnet addresses on mainnet, and do not enable
+the mainnet switch until explorer source verification and read-only smoke tests
+pass.
+
 ## Test suite
 
 ```bash
@@ -396,6 +451,21 @@ markets.
   legal, security, financial, or regulatory audit.
 - Do not use the system to tokenize prohibited goods, sensitive personal data,
   or assets you do not have permission to describe.
+
+## Submission readiness audit
+
+- **Passing:** TypeScript, production Next.js build, unit tests, and all nine
+  registry/marketplace contract tests.
+- **Passing:** X Layer testnet chain ID `1952`, contract-backed AI economic
+  authorization, chain-bound signing, dual-network query isolation, durable
+  Neon indexing, and credential ignore rules.
+- **Blocker:** fresh X Layer mainnet registry and marketplace deployments plus
+  explorer source verification are still required before claiming mainnet
+  readiness.
+- **Blocker:** add the project's dedicated X/Twitter profile URL before the
+  hackathon submission. The repository intentionally does not invent one.
+- **Blocker:** add a public demo-video URL if the submission form requires one;
+  local navigation recordings are ignored and are not committed.
 
 ## Project layout
 

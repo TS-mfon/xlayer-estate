@@ -21,3 +21,5 @@ test-fixtures/real-estate/*.pdf
 .env*
 .agents/
 skills-lock.json
+dd.mp4
+kk.mp4

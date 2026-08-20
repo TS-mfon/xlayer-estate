@@ -1,53 +1,16 @@
 "use client";
 
-import { useChainId } from "wagmi";
-import { xlayerTestnet } from "@/lib/chains";
+import { useChainId, useSwitchChain } from "wagmi";
+import { useProtocolNetwork } from "@/lib/network-context";
 
-/** Adds/switches the wallet to X Layer Testnet (chain 1952) on demand. */
 export function AddNetworkButton() {
   const chainId = useChainId();
+  const { network } = useProtocolNetwork();
+  const { switchChainAsync, isPending } = useSwitchChain();
 
-  if (chainId === xlayerTestnet.id) {
-    return (
-      <span className="rounded-lg border border-emerald-300/15 bg-emerald-500/10 px-2.5 py-2 text-xs text-emerald-200">
-        X Layer Testnet
-      </span>
-    );
-  }
+  if (chainId === network.id) return <span className="network-status is-ready">{network.shortLabel}</span>;
 
-  const addNetwork = async () => {
-    const eth = (window as unknown as { ethereum?: any }).ethereum;
-    if (!eth?.request) return;
-    const hexChain = "0x7A0"; // 1952
-    try {
-      await eth.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: hexChain }],
-      });
-    } catch (err: any) {
-      if (err?.code === 4902) {
-        await eth.request({
-          method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: hexChain,
-              chainName: "X Layer Testnet",
-              nativeCurrency: { name: "OKB", symbol: "OKB", decimals: 18 },
-              rpcUrls: [
-                "https://xlayer-testnet.drpc.org",
-                "https://195.rpc.thirdweb.com",
-              ],
-              blockExplorerUrls: ["https://www.oklink.com/xlayer-test"],
-            },
-          ],
-        });
-      }
-    }
-  };
-
-  return (
-    <button className="button button-ghost !min-h-8 !py-1.5 !text-xs" onClick={addNetwork}>
-      Switch to X Layer
-    </button>
-  );
+  return <button className="button button-ghost !min-h-8 !py-1.5 !text-xs" disabled={isPending} onClick={() => switchChainAsync({ chainId: network.id })}>
+    {isPending ? "Switching…" : `Switch to ${network.shortLabel}`}
+  </button>;
 }

@@ -64,10 +64,17 @@ a { color: inherit; text-decoration: none; }
 .nav-sequence-hidden { opacity: 0; transform: translateY(-18px); pointer-events: none; }
 .nav-inner { max-width: 1240px; margin: auto; padding: 10px 12px 10px 16px; display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(147, 235, 255, .13); border-radius: 18px; background: rgba(7, 13, 24, .62); backdrop-filter: blur(20px); box-shadow: 0 20px 60px rgba(0,0,0,.22); }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-size: .84rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
-.brand-mark { display: grid; place-items: center; width: 30px; height: 30px; color: #051018; border-radius: 9px; background: linear-gradient(135deg, #b7fffa, #50d7ec 55%, #7775ff); box-shadow: 0 0 24px rgba(78, 230, 255, .45); }
+.brand-mark { display: grid; place-items: center; width: 30px; height: 30px; overflow: hidden; border-radius: 9px; background: linear-gradient(135deg, #b7fffa, #50d7ec 55%, #7775ff); box-shadow: 0 0 24px rgba(78, 230, 255, .45); }
+.brand-mark img { width: 100%; height: 100%; display: block; }
 .nav-links { display: flex; gap: 4px; align-items: center; }
 .nav-links a { padding: 8px 12px; border-radius: 10px; color: rgba(220, 245, 255, .6); font-size: .8rem; transition: .25s ease; }
 .nav-links a:hover, .nav-links a.active { color: #affdff; background: rgba(118, 236, 255, .08); }
+.nav-wallet { display: flex; align-items: center; gap: 8px; }
+.network-switcher { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid rgba(160,239,255,.14); border-radius: 999px; background: rgba(255,255,255,.035); }
+.network-switcher button { border: 0; border-radius: 999px; padding: 7px 10px; color: rgba(220,245,255,.55); background: transparent; font: inherit; font-size: .68rem; cursor: pointer; transition: .25s ease; }
+.network-switcher button:hover, .network-switcher button.active { color: #041018; background: #9cf8f5; }
+.network-switcher button:disabled { opacity: .5; cursor: wait; }
+.network-status { display: inline-flex; align-items: center; border: 1px solid rgba(117,255,210,.18); border-radius: 9px; padding: 7px 10px; color: #b8ffe5; background: rgba(60,220,160,.08); font-size: .68rem; }
 
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border: 1px solid transparent; border-radius: 12px; font-size: .78rem; font-weight: 700; letter-spacing: .04em; cursor: pointer; transition: transform .25s ease, border-color .25s ease, background .25s ease, box-shadow .25s ease; }
 .button:hover { transform: translateY(-2px); }

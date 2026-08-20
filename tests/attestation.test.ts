@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { issueEvaluationToken, issueImageToken, verifyEvaluationToken, verifyImageToken } from "../src/lib/attestation";
+import { assertEvaluationChain, issueEvaluationToken, issueImageToken, verifyEvaluationToken, verifyImageToken } from "../src/lib/attestation";
 import { hashReport, serializeReport } from "../src/lib/metadata";
 import type { UnderwritingReport } from "../src/lib/types";
 
@@ -83,9 +83,20 @@ test("asset image approvals bind the selected twin to its report", () => {
   };
   const token = issueImageToken(claims, image);
 
-  assert.equal(verifyImageToken(reportHash, image, token).contentHash, image.contentHash);
+  assert.equal(verifyImageToken(reportHash, image, token, 1952).contentHash, image.contentHash);
   assert.throws(
     () => verifyImageToken(reportHash, { ...image, uri: `${image.uri}?changed=1` }, token),
     /does not match this report and twin/,
   );
+  assert.throws(
+    () => verifyImageToken(reportHash, image, token, 196),
+    /does not match this report and twin/,
+  );
+});
+
+test("evaluation tokens cannot be reused across X Layer networks", () => {
+  const reportHash = hashReport(serializeReport(report));
+  const { claims } = issueEvaluationToken(reportHash, 1952);
+  assert.doesNotThrow(() => assertEvaluationChain(claims, 1952));
+  assert.throws(() => assertEvaluationChain(claims, 196), /different X Layer network/);
 });

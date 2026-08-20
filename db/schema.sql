@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS assets (
-  token_id NUMERIC(78, 0) PRIMARY KEY,
+  chain_id INTEGER NOT NULL,
+  token_id NUMERIC(78, 0) NOT NULL,
   issuer TEXT NOT NULL,
   valuation_usd NUMERIC(78, 0) NOT NULL,
   launch_valuation_usd NUMERIC(78, 0) NOT NULL,
@@ -10,11 +11,13 @@ CREATE TABLE IF NOT EXISTS assets (
   metadata_hash TEXT NOT NULL,
   metadata_uri TEXT NOT NULL,
   minted_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chain_id, token_id)
 );
 
 CREATE TABLE IF NOT EXISTS markets (
-  token_id NUMERIC(78, 0) PRIMARY KEY REFERENCES assets(token_id) ON DELETE CASCADE,
+  chain_id INTEGER NOT NULL,
+  token_id NUMERIC(78, 0) NOT NULL,
   share_reserve NUMERIC(78, 0) NOT NULL,
   usdc_reserve NUMERIC(78, 0) NOT NULL,
   total_liquidity NUMERIC(78, 0) NOT NULL,
@@ -22,32 +25,32 @@ CREATE TABLE IF NOT EXISTS markets (
   active BOOLEAN NOT NULL,
   spot_price NUMERIC(40, 18) NOT NULL,
   implied_market_cap NUMERIC(40, 6) NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (chain_id, token_id),
+  FOREIGN KEY (chain_id, token_id) REFERENCES assets(chain_id, token_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS holdings (
+  chain_id INTEGER NOT NULL,
   wallet TEXT NOT NULL,
-  token_id NUMERIC(78, 0) NOT NULL REFERENCES assets(token_id) ON DELETE CASCADE,
+  token_id NUMERIC(78, 0) NOT NULL,
   balance NUMERIC(78, 0) NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (wallet, token_id)
+  PRIMARY KEY (chain_id, wallet, token_id),
+  FOREIGN KEY (chain_id, token_id) REFERENCES assets(chain_id, token_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS market_snapshots (
   id BIGSERIAL PRIMARY KEY,
-  token_id NUMERIC(78, 0) NOT NULL REFERENCES assets(token_id) ON DELETE CASCADE,
+  chain_id INTEGER NOT NULL,
+  token_id NUMERIC(78, 0) NOT NULL,
   share_reserve NUMERIC(78, 0) NOT NULL,
   usdc_reserve NUMERIC(78, 0) NOT NULL,
   spot_price NUMERIC(40, 18) NOT NULL,
   implied_market_cap NUMERIC(40, 6) NOT NULL,
-  captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  FOREIGN KEY (chain_id, token_id) REFERENCES assets(chain_id, token_id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS market_snapshots_token_time_idx
-  ON market_snapshots(token_id, captured_at DESC);
-
-CREATE TABLE IF NOT EXISTS indexer_state (
-  indexer_key TEXT PRIMARY KEY,
-  last_synced_block NUMERIC(78, 0) NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+CREATE INDEX IF NOT EXISTS market_snapshots_chain_token_time_idx ON market_snapshots(chain_id, token_id, captured_at DESC);
+CREATE TABLE IF NOT EXISTS indexer_state (indexer_key TEXT PRIMARY KEY, last_synced_block NUMERIC(78, 0) NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());

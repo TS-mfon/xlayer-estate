@@ -1,15 +1,16 @@
-export const RWA_ADDRESS = (process.env.NEXT_PUBLIC_RWA_ADDRESS ??
-  "0x0000000000000000000000000000000000000000") as `0x${string}`;
+import { DEFAULT_CHAIN_ID, getNetwork, type SupportedChainId } from "./network";
+
+export const RWA_ADDRESS = getNetwork(DEFAULT_CHAIN_ID).registry;
 
 /** Fractional ownership units minted per tokenized physical asset (ERC-1155 supply). */
 export const TOTAL_SHARES = 1_000_000n;
-export const MARKETPLACE_ADDRESS = (process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS ?? "0x0000000000000000000000000000000000000000") as `0x${string}`;
-export const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS ?? "0xcb8bf24c6ce16ad21d707c9505421a17f2bec79d") as `0x${string}`;
+export const MARKETPLACE_ADDRESS = getNetwork(DEFAULT_CHAIN_ID).marketplace;
+export const USDC_ADDRESS = getNetwork(DEFAULT_CHAIN_ID).usdc;
 export const USDC_DECIMALS = 6;
 export const PLATFORM_FEE_USDC = 200_000n;
-export const FEE_COLLECTOR = (process.env.NEXT_PUBLIC_FEE_COLLECTOR ?? "0x5905c9Dea6Ae52AA0947D8F7F218263889eDfC4E") as `0x${string}`;
-export const RWA_DEPLOYMENT_BLOCK = BigInt(process.env.NEXT_PUBLIC_RWA_DEPLOYMENT_BLOCK ?? "38100000");
-export const MARKETPLACE_DEPLOYMENT_BLOCK = BigInt(process.env.NEXT_PUBLIC_MARKETPLACE_DEPLOYMENT_BLOCK ?? "38100000");
+export const FEE_COLLECTOR = getNetwork(DEFAULT_CHAIN_ID).feeCollector;
+export const RWA_DEPLOYMENT_BLOCK = getNetwork(DEFAULT_CHAIN_ID).registryDeploymentBlock;
+export const MARKETPLACE_DEPLOYMENT_BLOCK = getNetwork(DEFAULT_CHAIN_ID).marketplaceDeploymentBlock;
 export const LOG_CHUNK_SIZE = 9_000n;
 
 export const EXPLORERS: Record<number, string> = {
@@ -29,4 +30,8 @@ export function explorerToken(chainId: number, address: string, tokenId: bigint)
 
 export function metadataGateway(uri: string) {
   return uri.startsWith("ipfs://") ? `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}` : uri;
+}
+
+export function networkConfig(chainId: SupportedChainId) {
+  return getNetwork(chainId);
 }

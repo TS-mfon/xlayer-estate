@@ -71,6 +71,11 @@ export function UnderwritingReport({ report }: { report: UnderwritingReport }) {
       </div>
 
       <p className="mt-4 text-sm leading-relaxed text-white/70">{report.summary}</p>
+      {report.rejection && <div className="mt-5 rounded-2xl border border-amber-200/15 bg-amber-200/[.06] p-4 text-sm text-amber-50">
+        <p className="font-semibold">{report.rejection.message}</p>
+        <p className="mt-2 text-xs uppercase tracking-[.16em] text-amber-200/60">Try this next</p>
+        <ul className="mt-2 space-y-1 text-sm text-white/70">{report.rejection.suggestions.map((suggestion) => <li key={suggestion}>↳ {suggestion}</li>)}</ul>
+      </div>}
     </div>
   );
 }

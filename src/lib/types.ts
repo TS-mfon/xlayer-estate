@@ -1,4 +1,5 @@
 export type UnderwritingDecision = "approved" | "manual_review" | "rejected";
+export type UnderwritingRejectionCode = "PHOTO_REQUIRED" | "UNCLEAR_ASSET" | "COPIED_OR_SYNTHETIC" | "UNSUPPORTED_ASSET" | "SAFETY_RESTRICTION" | "MANUAL_REVIEW";
 
 export interface UnderwritingReport {
   asset: {
@@ -28,6 +29,13 @@ export interface UnderwritingReport {
   ownershipVerified: false;
   mock?: boolean;
   fallbackReason?: string;
+  rejection?: {
+    code: UnderwritingRejectionCode;
+    message: string;
+    suggestions: string[];
+    retryable: boolean;
+    requiresFreshPhoto: boolean;
+  };
 }
 
 export interface UnderwritingResponse {

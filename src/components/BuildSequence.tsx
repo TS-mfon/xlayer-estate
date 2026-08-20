@@ -12,7 +12,7 @@ const stages = [
   { eyebrow: "02 / GEMINI TWIN", title: "The asset gets a visual identity", body: "Gemini recognizes the object, then creates a gallery-grade digital twin without publishing the original source photo by default." },
   { eyebrow: "03 / UNDERWRITE", title: "Evidence becomes a conservative record", body: "The evaluator checks that the object is real and recognizable, estimates second-hand value, and attaches confidence and risk signals." },
   { eyebrow: "04 / MINT", title: "The record becomes programmable", body: "A signed authorization binds the report, image, wallet, valuation, and keccak256 hashes before one million ERC-1155 shares are minted." },
-  { eyebrow: "05 / LIQUIDITY", title: "A market assembles around it", body: "The issuer seeds at least 10 USDC_TEST, permanent liquidity locks, and buyers or sellers trade with transparent fixed 0.20 USDC platform fees." },
+  { eyebrow: "05 / LIQUIDITY", title: "A market assembles around it", body: "The issuer seeds at least 10 USDC, permanent liquidity locks, and buyers or sellers trade with transparent fixed 0.20 USDC platform fees on the selected X Layer network." },
 ];
 
 export function BuildSequence() {
