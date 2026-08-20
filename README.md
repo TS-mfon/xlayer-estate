@@ -264,6 +264,27 @@ private keys, Gemini keys, media tokens, or session secrets.
   key here.
 - `UNDERWRITER_SESSION_SECRET` — HMAC secret for evaluation sessions.
 
+### Durable indexing and live prices
+
+The contracts remain authoritative for ownership, balances, pool reserves, and
+trades. The dashboard and marketplace use server-side individual reads because
+X Layer testnet does not expose the Multicall3 contract expected by generic
+Viem multicall helpers. When configured, Neon stores a durable read model for
+assets, holdings, markets, and historical price snapshots; if Neon is absent or
+temporarily unavailable, the APIs fall back to direct X Layer reads.
+
+Set `DATABASE_URL` and `INDEXER_SECRET` in Vercel. The GitHub Actions workflow
+`.github/workflows/sync-index.yml` runs every five minutes; configure repository
+secrets `INDEXER_SYNC_URL` (the production `/api/index/sync` URL) and
+`INDEXER_SECRET` with the same value as Vercel. After a confirmed mint, listing,
+buy, sell, or liquidity transaction, the client also requests an immediate
+index refresh.
+
+Listed cards and market detail show the live AMM spot price per ERC-1155 share,
+the implied market cap, and price movement from the launch price. The fixed
+protocol fee is excluded from reserve pricing because it is paid to the fee
+collector rather than deposited into the pool.
+
 ### Provision the public media repository
 
 Use a dedicated public repository. Do not grant the application write access

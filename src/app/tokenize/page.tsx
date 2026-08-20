@@ -95,6 +95,7 @@ export default function TokenizePage() {
         if (decoded.eventName === "AssetTokenized") { setTokenId(String(decoded.args.tokenId)); break; }
       } catch { /* unrelated receipt log */ }
     }
+    if (txHash) void fetch("/api/index/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ txHash }) }).catch(() => undefined);
     setPhase("confirmed");
   }, [receipt, txConfirmed]);
 

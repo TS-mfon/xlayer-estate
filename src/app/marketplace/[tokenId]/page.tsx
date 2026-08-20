@@ -14,6 +14,8 @@ import { friendlyError } from "@/lib/errors";
 import { assertSuccessfulReceipt, simulateContractWrite } from "@/lib/transactions";
 import { listingLaunchState, MIN_SEED_USDC } from "@/lib/marketplace-state";
 import { normalizeAssetInfo, type AssetInfo } from "@/lib/asset-info";
+import { formatPercent, formatPrice } from "@/lib/format";
+import { calculateMarketPricing } from "@/lib/market-data";
 import type { AssetMetadata } from "@/lib/types";
 
 type PoolRecord = readonly [bigint, bigint, bigint, bigint, boolean];
@@ -106,6 +108,7 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
       assertSuccessfulReceipt(await client.waitForTransactionReceipt({ hash }));
       setNotice(`${label} confirmed on X Layer.`);
       await refreshReads();
+      await fetch("/api/index/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ txHash: hash }) }).catch(() => undefined);
     } catch (caught) {
       setError(friendlyError(caught, `${label} failed`));
     } finally {
@@ -160,7 +163,7 @@ export default function MarketDetailPage({ params, searchParams }: { params: { t
         <aside className="transaction-console">
           {!isConnected && <Panel tone="warning">Connect a wallet to trade this asset.</Panel>}
           {isConnected && wrongNetwork && <div className="glass-panel flex items-center justify-between gap-3 p-4 text-amber-100"><span>Switch to X Layer Testnet to continue.</span><AddNetworkButton /></div>}
-          {active && <><TradeBox title="Acquire shares" amount={buyAmount} setAmount={setBuyAmount} quote={`${Number(buyQuote.data ?? 0n).toLocaleString()} shares`} hint="Amount includes the fixed $0.20 buy fee." action={buyNeedsApproval ? () => transact("USDC approval", { address: USDC_ADDRESS, abi: erc20Abi, functionName: "approve", args: [MARKETPLACE_ADDRESS, buyRaw] }) : () => transact("Share purchase", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "buy", args: [tokenId, buyRaw, (buyQuote.data ?? 0n) * 99n / 100n, BigInt(Math.floor(Date.now() / 1000) + 600)] })} label={buyNeedsApproval ? "Approve USDC" : "Buy shares"} disabled={!isConnected || Boolean(busy) || wrongNetwork || buyRaw <= PLATFORM_FEE_USDC} /><TradeBox title="Release shares" amount={sellAmount} setAmount={setSellAmount} quote={`${Number(formatUnits(sellQuote.data ?? 0n, 6)).toFixed(4)} USDC net`} hint="The fixed $0.20 sell fee is deducted from proceeds." action={!approvalRead.data ? () => transact("Share approval", { address: RWA_ADDRESS, abi: rwaAbi, functionName: "setApprovalForAll", args: [MARKETPLACE_ADDRESS, true] }) : () => transact("Share sale", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "sell", args: [tokenId, sellRaw, (sellQuote.data ?? 0n) * 99n / 100n, BigInt(Math.floor(Date.now() / 1000) + 600)] })} label={!approvalRead.data ? "Approve shares" : "Sell shares"} disabled={!isConnected || Boolean(busy) || wrongNetwork || sellRaw <= 0n} /></>}
+          {active && <><MarketPricePanel info={info} pool={pool} /><TradeBox title="Acquire shares" amount={buyAmount} setAmount={setBuyAmount} quote={`${Number(buyQuote.data ?? 0n).toLocaleString()} shares`} hint="Amount includes the fixed $0.20 buy fee." action={buyNeedsApproval ? () => transact("USDC approval", { address: USDC_ADDRESS, abi: erc20Abi, functionName: "approve", args: [MARKETPLACE_ADDRESS, buyRaw] }) : () => transact("Share purchase", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "buy", args: [tokenId, buyRaw, (buyQuote.data ?? 0n) * 99n / 100n, BigInt(Math.floor(Date.now() / 1000) + 600)] })} label={buyNeedsApproval ? "Approve USDC" : "Buy shares"} disabled={!isConnected || Boolean(busy) || wrongNetwork || buyRaw <= PLATFORM_FEE_USDC} /><TradeBox title="Release shares" amount={sellAmount} setAmount={setSellAmount} quote={`${Number(formatUnits(sellQuote.data ?? 0n, 6)).toFixed(4)} USDC net`} hint="The fixed $0.20 sell fee is deducted from proceeds." action={!approvalRead.data ? () => transact("Share approval", { address: RWA_ADDRESS, abi: rwaAbi, functionName: "setApprovalForAll", args: [MARKETPLACE_ADDRESS, true] }) : () => transact("Share sale", { address: MARKETPLACE_ADDRESS, abi: marketplaceAbi, functionName: "sell", args: [tokenId, sellRaw, (sellQuote.data ?? 0n) * 99n / 100n, BigInt(Math.floor(Date.now() / 1000) + 600)] })} label={!approvalRead.data ? "Approve shares" : "Sell shares"} disabled={!isConnected || Boolean(busy) || wrongNetwork || sellRaw <= 0n} /></>}
           {!active && issuer && <a className="button button-primary" href={`/marketplace/${params.tokenId}?intent=list#launch`}>Start guided listing ↗</a>}
           {!active && !issuer && <Panel tone="warning">Only the original issuer can seed and open this market.</Panel>}
         </aside>
@@ -190,6 +193,12 @@ function AssetSummary({ tokenId, info, metadata, image, shareBalance, detailed =
     <div className="asset-gallery-media">{image ? <Image src={image} alt={metadata?.name ?? `Asset ${tokenId}`} fill sizes="(max-width: 1024px) 100vw, 55vw" unoptimized/> : <div className="asset-gallery-placeholder"><span>✦</span><small>Loading asset twin</small></div>}<div className="gallery-scan"/><span className="gallery-index">PROPERTY / {tokenId.padStart(4,"0")}</span></div>
     <div className="asset-gallery-copy"><p className="kicker">On-chain property record</p><h2>{metadata?.name ?? `Asset #${tokenId}`}</h2><p>{metadata?.description ?? "AI-underwritten physical asset record secured on X Layer."}</p><div className="ledger-stats"><Stat label="AI valuation" value={`$${Number(info.valuationUsd).toLocaleString()}`} /><Stat label="Launch valuation" value={`$${Number(info.launchValuationUsd).toLocaleString()}`} /><Stat label="Risk" value={`${info.riskScore}/100`} /><Stat label="Your shares" value={Number(shareBalance).toLocaleString()} /></div>{detailed && pool?.[4] && <div className="live-pool"><p className="kicker">Live pool telemetry</p><div className="ledger-stats"><Stat label="Share reserve" value={Number(pool[0]).toLocaleString()} /><Stat label="USDC reserve" value={`${Number(formatUnits(pool[1], 6)).toFixed(2)} USDC`} /><Stat label="Spot price" value={`$${pool[0] ? (Number(pool[1]) / 1e6 / Number(pool[0])).toFixed(5) : "0"}`} /><Stat label="Locked LP" value={pool[3].toString()} /></div></div>}</div>
   </section>;
+}
+
+function MarketPricePanel({ info, pool }: { info: AssetInfo; pool?: PoolRecord }) {
+  if (!pool?.[4]) return null;
+  const pricing = calculateMarketPricing(info, pool);
+  return <div className="market-price-panel glass-panel"><div><p className="kicker">Live AMM price</p><strong>{formatPrice(pricing.spotPricePerShare)}</strong><span>per share</span></div><div><p className="kicker">Implied market cap</p><strong>{formatPrice(pricing.impliedMarketCap)}</strong><span>{formatPercent(pricing.sinceLaunchChange)} since launch</span></div></div>;
 }
 
 function LaunchLoading({ compact = false }: { compact?: boolean }) { return <div className={`launch-loading glass-panel ${compact ? "is-compact" : ""}`}><span className="animate-pulse">✦</span><div><p className="kicker">Reading X Layer</p><h2>Preparing the launch sequence…</h2><p>Loading the issuer, balances, approvals, and pool state.</p></div></div>; }
