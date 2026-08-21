@@ -29,5 +29,5 @@ export function FaucetButton({ onMinted }: { onMinted?: () => void }) {
       setState("done"); onMinted?.();
     } catch (caught) { setError(friendlyError(caught, "Test USDC mint failed")); setState("idle"); }
   }
-  return <div><button className="button button-ghost" disabled={!address || chainId !== network.id || state === "busy"} onClick={mint}>{state === "busy" ? "Minting test USDC…" : state === "done" ? "25 USDC_TEST received ✓" : "Get 25 test USDC"}</button>{error && <p className="mt-2 text-xs text-red-200">{error}</p>}</div>;
+  return <div><button className="button button-ghost" disabled={!address || chainId !== network.id || state === "busy"} onClick={mint}>{state === "busy" ? "Minting protocol test USDC…" : state === "done" ? "25 USDC_TEST received ✓" : "Get 25 protocol test USDC"}</button><p className="mt-2 max-w-xs text-xs text-white/45">USDC_TEST is XLayer Estate’s project MockUSDC for testnet demos. It is not official Circle USDC and has no real-world value.</p>{error && <p className="mt-2 text-xs text-red-200">{error}</p>}</div>;
 }

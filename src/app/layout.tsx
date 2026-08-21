@@ -28,7 +28,7 @@ export default function RootLayout({
           <ProtocolAtmosphere />
           <Nav />
           <main className="site-main">{children}</main>
-          <footer className="protocol-footer"><div><span className="brand-mark"><img src="/icon.svg" alt="" /></span><div><strong>XLayer Estate</strong><p>AI-underwritten physical assets. Fractional markets. X Layer settlement.</p></div></div><div><span>TESTNET 1952 / MAINNET 196</span><span>USDC MARKETS</span><span>SELF-ATTESTED ASSETS</span></div></footer>
+          <footer className="protocol-footer"><div><span className="brand-mark"><img src="/icon.svg" alt="" /></span><div><strong>XLayer Estate</strong><p>AI-underwritten physical assets. Fractional markets. X Layer settlement.</p></div></div></footer>
         </Providers>
       </body>
     </html>
