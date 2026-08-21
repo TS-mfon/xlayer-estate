@@ -11,6 +11,7 @@ const links = [
   { href: "/tokenize", label: "Underwrite" },
   { href: "/dashboard", label: "Registry" },
   { href: "/marketplace", label: "Marketplace" },
+  { href: "/docs", label: "Docs" },
 ];
 
 export function Nav() {

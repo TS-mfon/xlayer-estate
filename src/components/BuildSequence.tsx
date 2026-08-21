@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { SceneCanvas } from "./SceneCanvas";
+import dynamic from "next/dynamic";
+
+const SceneCanvas = dynamic(() => import("./SceneCanvas").then((module) => module.SceneCanvas), {
+  ssr: false,
+  loading: () => <div className="scene-canvas scene-canvas-loading" aria-hidden="true"><span>✦</span></div>,
+});
 
 gsap.registerPlugin(ScrollTrigger);
 

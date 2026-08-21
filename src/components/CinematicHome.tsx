@@ -29,4 +29,4 @@ export function CinematicHome() {
   </div>;
 }
 
-function VideoBackground({ src }: { src: string }) { return <><video className="cinematic-video" src={src} autoPlay muted loop playsInline/><div className="cinematic-shade"/></>; }
+function VideoBackground({ src }: { src: string }) { return <><video className="cinematic-video" src={src} autoPlay muted loop playsInline preload="none"/><div className="cinematic-shade"/></>; }

@@ -39,10 +39,12 @@ fractional market on X Layer.
 - [Integration guide](docs/INTEGRATION.md)
 - [Deployment and operations](docs/OPERATIONS.md)
 - [Cinematic interface specification](DESIGN_PROMPT.md)
+- [In-app documentation portal](https://xlayer-estate.vercel.app/docs)
 
 The root README is the protocol entrypoint. The files in `docs/` provide deeper
 normative specifications, integration sequences, security assumptions, and
-operator runbooks.
+operator runbooks. The deployed application also exposes the same concepts
+through the searchable, user-and-developer-facing `/docs` portal.
 
 ## Protocol at a glance
 
