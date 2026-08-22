@@ -16,6 +16,11 @@ export function friendlyError(error: unknown, fallback = "Something went wrong")
   if (/trade expired|authorization expired/i.test(message)) return "This approval or quote expired. Refresh and try again.";
   if (/paused/i.test(message)) return "Marketplace actions are temporarily paused.";
   if (/authorization expired|evaluation expired/i.test(message)) return "This authorization expired. Run the asset evaluation again.";
+  if (/passportnoteligible|passport restricted|passport expired|restricted passport/i.test(message)) return "This asset Passport is restricted or expired. Refresh the record before continuing.";
+  if (/priceimpactexceeded|price impact/i.test(message)) return "This trade would move the market too far. Reduce the amount or wait for deeper liquidity.";
+  if (/invalidauthorization|invalid underwriting authorization/i.test(message)) return "The signed authorization does not match this asset, wallet, or network. Run the evaluation again.";
+  if (/authorizationused|nonceused/i.test(message)) return "This authorization has already been used. Request a fresh signed action.";
+  if (/policyrejected|policy rejected/i.test(message)) return "The evidence did not pass the current deterministic asset policy.";
   if (/network|chain/i.test(message)) return "Switch your wallet to X Layer Testnet and retry.";
   const short = message.split("\n")[0]?.trim();
   return short && short.length < 220 ? short : fallback;

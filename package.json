@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "doctor": "node scripts/doctor.js",
     "start": "next start",
     "lint": "next lint",
     "test:unit": "node --import tsx/esm --test tests/**/*.test.ts",
@@ -13,6 +14,7 @@
     "deploy:testnet": "node deploy-agent/deploy-raw.js",
     "deploy:v2": "node scripts/deploy-v2.js",
     "deploy:marketplace:v3": "node scripts/deploy-marketplace-v3.js",
+    "deploy:v2:network": "node scripts/deploy-v2-network.js",
     "preflight:mainnet": "node scripts/preflight-mainnet.js",
     "deploy:mainnet": "node scripts/deploy-network.js mainnet",
     "deploy:network": "node scripts/deploy-network.js"

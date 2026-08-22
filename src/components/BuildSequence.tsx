@@ -14,10 +14,10 @@ gsap.registerPlugin(ScrollTrigger);
 
 const stages = [
   { eyebrow: "01 / CAPTURE", title: "A physical object enters the frame", body: "Upload a clear photo of a laptop, cup, camera, watch, vehicle, collectible, tool, or other lawful physical item—without exposing confidential ownership documents." },
-  { eyebrow: "02 / GEMINI TWIN", title: "The asset gets a visual identity", body: "Gemini recognizes the object, then creates a gallery-grade digital twin without publishing the original source photo by default." },
-  { eyebrow: "03 / UNDERWRITE", title: "Evidence becomes a conservative record", body: "The evaluator checks that the object is real and recognizable, estimates second-hand value, and attaches confidence and risk signals." },
-  { eyebrow: "04 / MINT", title: "The record becomes programmable", body: "A signed authorization binds the report, image, wallet, valuation, and keccak256 hashes before one million ERC-1155 shares are minted." },
-  { eyebrow: "05 / LIQUIDITY", title: "A market assembles around it", body: "The issuer seeds at least 10 USDC, permanent liquidity locks, and buyers or sellers trade with transparent fixed 0.20 USDC platform fees on the selected X Layer network." },
+  { eyebrow: "02 / INSPECT", title: "AI extracts claims, not authority", body: "Gemini identifies the object, condition, and comparable market signals. Deterministic policy—not model prose—decides whether the evidence can progress." },
+  { eyebrow: "03 / PASSPORT", title: "Evidence becomes a versioned Passport", body: "Content hashes, confidence, valuation, risk, and policy version assemble into a tamper-evident record that can be superseded without rewriting history." },
+  { eyebrow: "04 / ISSUE", title: "The Passport becomes programmable", body: "A typed authorization binds the Passport, recipient, metadata, supply, chain, nonce, and expiry before ERC-1155 shares are issued." },
+  { eyebrow: "05 / LIQUIDITY", title: "A bounded market assembles", body: "The issuer opens an isolated pool. Reserve depth, slippage limits, asset status, and locked liquidity protect traders from thin-market execution." },
 ];
 
 export function BuildSequence() {

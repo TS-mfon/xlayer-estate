@@ -24,6 +24,8 @@ export interface UnderwritingReport {
   missingEvidence: string[];
   decision: UnderwritingDecision;
   decisionReasons: string[];
+  policyVersion?: string;
+  policyChecks?: Array<{ id: string; passed: boolean; message: string }>;
   summary: string;
   mintEligible: boolean;
   ownershipVerified: false;

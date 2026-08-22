@@ -27,19 +27,15 @@ function AssetCore({ progress }: { progress: number }) {
   const marketProgress = THREE.MathUtils.smoothstep(visible, 0.78, 0.96);
   return (
     <group ref={group} scale={0.85 + visible * 0.2}>
-      <mesh>
-        <icosahedronGeometry args={[1.15, 2]} />
-        <meshPhysicalMaterial
-          color="#9df8ff"
-          emissive="#16b7d0"
-          emissiveIntensity={1.4}
-          metalness={0.4}
-          roughness={0.18}
-          transmission={0.55}
-          transparent
-          opacity={0.36 + visible * 0.4}
-        />
+      <mesh scale={[1.15, 1.45, 0.08]}>
+        <boxGeometry />
+        <meshPhysicalMaterial color="#07141f" emissive="#16b7d0" emissiveIntensity={0.8} metalness={0.35} roughness={0.2} transmission={0.42} transparent opacity={0.32 + visible * 0.48} />
       </mesh>
+      <mesh position={[0, 0.24, 0.12]} scale={[0.76, 0.48, 0.02]}>
+        <boxGeometry />
+        <meshBasicMaterial color="#8ff6ff" transparent opacity={0.15 + scanProgress * 0.6} />
+      </mesh>
+      {[0.62, 0.32, 0.02, -0.28, -0.58].map((row, index) => <mesh key={row} position={[index % 2 ? 0.18 : -0.1, row, 0.14]} scale={[index % 2 ? 0.55 : 0.72, 0.018, 0.01]}><boxGeometry/><meshBasicMaterial color={index === 4 ? "#8effbd" : "#d6fbff"} transparent opacity={valuationProgress * (0.32 + index * 0.1)}/></mesh>)}
       <mesh position={[-2.25, 0.9, 0]} scale={[0.8 * photoProgress, 0.5 * photoProgress, 0.03]}>
         <boxGeometry />
         <meshPhysicalMaterial color="#07141f" emissive="#42dff5" emissiveIntensity={0.45} transparent opacity={0.25 + photoProgress * 0.65} />
@@ -80,7 +76,7 @@ function AssetCore({ progress }: { progress: number }) {
         );
       })}
       <Html center distanceFactor={7} style={{ pointerEvents: "none" }}>
-        <div className="scene-core-label">PHOTO → AI → TOKEN → USDC</div>
+        <div className="scene-core-label">EVIDENCE → AI → PASSPORT → LIQUIDITY</div>
       </Html>
     </group>
   );

@@ -8,6 +8,15 @@ tamper-evident asset record; authorizes ERC-1155 issuance through a short-lived
 EIP-712 underwriting signature; and lets an issuer open a valuation-anchored
 fractional market on X Layer.
 
+The current production deployment is V1 testnet. V2 contracts compile and pass
+the local adversarial suite, but V2 addresses are not presented as live until a
+dedicated testnet rollout and verification are complete.
+
+The V2 architecture adds versioned Evidence and Asset Passport registries,
+deterministic policy enforcement, a bounded agent gateway, and isolated markets
+with reserve-depth and price-impact controls. V2 is additive beside the current
+V1 deployment; existing V1 assets remain readable during migration.
+
 > **Protocol status:** X Layer testnet is operational. Mainnet support exists in
 > the application and deployment tooling, but must remain disabled until fresh
 > chain-196 contracts, a verified six-decimal settlement token, explorer source
@@ -38,8 +47,10 @@ fractional market on X Layer.
 - [Security and risk model](docs/SECURITY.md)
 - [Integration guide](docs/INTEGRATION.md)
 - [Deployment and operations](docs/OPERATIONS.md)
+- [V2 protocol specification](docs/V2_PROTOCOL.md)
 - [Cinematic interface specification](DESIGN_PROMPT.md)
 - [In-app documentation portal](https://xlayer-estate.vercel.app/docs)
+- [V2 protocol specification](docs/V2_PROTOCOL.md)
 
 The root README is the protocol entrypoint. The files in `docs/` provide deeper
 normative specifications, integration sequences, security assumptions, and

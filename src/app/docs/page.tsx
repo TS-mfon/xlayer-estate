@@ -116,6 +116,13 @@ const sections: DocSection[] = [
     summary: "Build and test the protocol without exposing credentials.",
     body: <><pre className="docs-code"><code>{`npm install\ncp .env.example .env.local\nnpm run build\nnpx next start -p 3000\n\n# validation\nnpx tsc --noEmit --pretty false\nnpm run test:unit\nnpm run test:contract`}</code><button type="button" onClick={() => navigator.clipboard?.writeText("npm install\ncp .env.example .env.local\nnpm run build\nnpx next start -p 3000")}>Copy</button></pre><p>Keep `.env.local`, `.env.build`, private keys, Gemini keys, database URLs, and media tokens out of Git.</p><Link className="docs-inline-link" href="https://github.com/TS-mfon/xlayer-estate" target="_blank">Open the repository ↗</Link></>,
   },
+  {
+    id: "v2",
+    group: "Protocol",
+    title: "V2 Asset Passports",
+    summary: "The next protocol layer separates evidence, policy, issuance, liquidity, and agent authority.",
+    body: <><div className="docs-flow"><span>Evidence</span><b>→</b><span>Passport</span><b>→</b><span>Issue</span><b>→</b><span>Pool</span><b>→</b><span>Proof</span></div><p>V2 adds versioned evidence records, sequential Asset Passports, deterministic policy thresholds, signed issuance, isolated bounded markets, and a restricted agent gateway. The current production testnet deployment remains V1; V2 deployment addresses will be published only after a separate testnet rollout and verification.</p><Link className="docs-inline-link" href="https://github.com/TS-mfon/xlayer-estate/blob/main/docs/V2_PROTOCOL.md" target="_blank">Read the V2 protocol specification ↗</Link></>,
+  },
 ];
 
 export default function DocsPage() {

@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { AssetCard } from "@/components/AssetCard";
-import { FaucetButton } from "@/components/FaucetButton";
 import { RouteHero, RouteMetric } from "@/components/RouteHero";
 import { useProtocolNetwork } from "@/lib/network-context";
 import { deserializeAssetInfo, type IndexedAsset } from "@/lib/market-data";
@@ -28,7 +27,7 @@ export default function DashboardPage() {
   const metric = (count: number) => portfolio.isLoading ? "—" : String(count).padStart(2, "0");
 
   return <div className="page-frame estate-dashboard">
-    <RouteHero eyebrow={`${network.label} / durable registry`} title={<>Your digital<br/>property world.</>} description="Your assets and holdings are read from the selected X Layer network and cached in the protocol index so they remain visible across sessions and RPC interruptions." actions={<><button className="button button-ghost" disabled={portfolio.isFetching} onClick={() => portfolio.refetch()}>{portfolio.isFetching ? "Refreshing estate…" : "Refresh estate ↻"}</button><FaucetButton onMinted={() => portfolio.refetch()} /></>} aside={<><RouteMetric label="Ready" value={metric(ready.length)}/><RouteMetric label="Markets" value={metric(listed.length)} tone="green"/><RouteMetric label="Holdings" value={metric(held.length)} tone="amber"/></>} />
+    <RouteHero eyebrow="Portfolio" title={<>Your asset<br/>command center.</>} description="Review issued assets, Passport status, listed markets, and fractional holdings from one persistent workspace." actions={<button className="button button-ghost" disabled={portfolio.isFetching} onClick={() => portfolio.refetch()}>{portfolio.isFetching ? "Refreshing portfolio…" : "Refresh portfolio ↻"}</button>} aside={<><RouteMetric label="Ready to list" value={metric(ready.length)}/><RouteMetric label="Live markets" value={metric(listed.length)} tone="green"/><RouteMetric label="Holdings" value={metric(held.length)} tone="amber"/></>} />
     {portfolio.data?.stale && <div className="glass-panel p-4 text-amber-100">Showing the latest indexed snapshot while the chain RPC recovers. Refresh to reconcile live balances.</div>}
     {!isConnected && <div className="estate-empty glass-panel"><span>⌁</span><p className="kicker">Wallet not connected</p><h2>Connect to enter your estate.</h2><p>Your issued assets, active markets, and fractional holdings will assemble here.</p></div>}
     {portfolio.isLoading && <div className="estate-loading">{[1,2,3].map((item) => <div className="estate-card animate-pulse" key={item} />)}</div>}
